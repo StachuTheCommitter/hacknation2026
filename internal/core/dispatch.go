@@ -79,6 +79,16 @@ func (a *App) WorkerHello(ctx context.Context, workerID string, h model.Hello) e
 	return err
 }
 
+// UpdateWorkerCaps – aktualizacja możliwości bez wpisu do audytu (wywoływana przy każdym lease).
+func (a *App) UpdateWorkerCaps(ctx context.Context, workerID string, h model.Hello) {
+	caps := map[string]any{}
+	for k, v := range h.Capabilities {
+		caps[k] = v
+	}
+	caps["warnings"] = h.Warnings
+	a.DB.Exec(ctx, `update workers set capabilities=$2, tool_versions=$3 where id=$1`, workerID, jsonb(caps), jsonb(h.Tools))
+}
+
 func (a *App) ListWorkers(ctx context.Context) ([]Worker, error) {
 	rows, err := a.DB.Query(ctx, `select id, name, vantage, capabilities, tool_versions, last_heartbeat, status, current_rate, coalesce(current_task::text,'') from workers order by name`)
 	if err != nil {
@@ -178,8 +188,17 @@ func (a *App) Lease(ctx context.Context, workerID string) (*model.Lease, error) 
 		runs[i], runs[j] = runs[j], runs[i]
 	}
 	groups := map[string]*groupCtx{}
+	var capsRaw []byte
+	a.DB.QueryRow(ctx, `select capabilities from workers where id=$1`, workerID).Scan(&capsRaw)
+	var caps map[string]any
+	json.Unmarshal(capsRaw, &caps)
+	hostNet, _ := caps["loopback"].(bool)
 	for _, r := range runs {
 		if r.GroupID == "" {
+			continue
+		}
+		// cele 127.0.0.0/8 może skanować tylko worker w sieci hosta (inaczej zobaczyłby własny kontener)
+		if hasLoopback(r.ranges) != hostNet && hasLoopback(r.ranges) {
 			continue
 		}
 		gc := groups[r.GroupID]
@@ -433,4 +452,9 @@ func (a *App) learnProbe(ctx context.Context, groupID string, dur time.Duration,
 	st.ProbeSecPort = ewma(st.ProbeSecPort, dur.Seconds()/float64(ports), st.ProbeSamples)
 	st.ProbeSamples++
 	a.DB.Exec(ctx, `update target_groups set stats=$2 where id=$1`, groupID, jsonb(st))
+}
+
+func hasLoopback(rs []netx.Range) bool {
+	lo := netx.Range{Start: 127 << 24, End: 127<<24 | 0xFFFFFF}
+	return len(netx.Intersect(rs, []netx.Range{lo})) > 0
 }

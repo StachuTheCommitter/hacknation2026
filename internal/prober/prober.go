@@ -163,16 +163,36 @@ func normHash(b []byte) string {
 	return hex.EncodeToString(h[:8])
 }
 
-// Detect sprawdza, czy port mówi HTTPS (handshake TLS) czy HTTP.
+// Detect ustala schemat portu. Dla typowych portów HTTPS najpierw TLS; dla pozostałych najpierw zwykłe HTTP –
+// niektóre serwery (np. Traefik) przyjmują TLS na każdym porcie i zwracają wtedy domyślny certyfikat i 404.
 func (p *Prober) Detect(ctx context.Context, ip string, port int, hintTLS bool) string {
+	addr := net.JoinHostPort(ip, strconv.Itoa(port))
 	tryTLS := func() bool {
 		d := &net.Dialer{Timeout: p.Timeout}
-		c, err := tls.DialWithDialer(d, "tcp", net.JoinHostPort(ip, strconv.Itoa(port)), &tls.Config{InsecureSkipVerify: true})
+		c, err := tls.DialWithDialer(d, "tcp", addr, &tls.Config{InsecureSkipVerify: true})
 		if err != nil {
 			return false
 		}
 		c.Close()
 		return true
+	}
+	tryHTTP := func() (ok, wantsTLS bool) {
+		d := &net.Dialer{Timeout: p.Timeout}
+		c, err := d.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return false, false
+		}
+		defer c.Close()
+		c.SetDeadline(time.Now().Add(p.Timeout))
+		fmt.Fprintf(c, "GET / HTTP/1.0\r\nHost: %s\r\nUser-Agent: %s\r\n\r\n", ip, p.UA)
+		buf := make([]byte, 1024)
+		n, _ := io.ReadAtLeast(c, buf, 12)
+		resp := string(buf[:n])
+		if !strings.HasPrefix(resp, "HTTP/") {
+			return false, n > 0 && n < 8 // krótka binarna odpowiedź → zwykle alert TLS
+		}
+		l := strings.ToLower(resp)
+		return true, strings.Contains(l, " 400 ") && (strings.Contains(l, "https") || strings.Contains(l, "tls") || strings.Contains(l, "ssl"))
 	}
 	if hintTLS || port == 443 || port == 8443 || port == 9443 {
 		if tryTLS() {
@@ -180,7 +200,7 @@ func (p *Prober) Detect(ctx context.Context, ip string, port int, hintTLS bool) 
 		}
 		return "http"
 	}
-	if port == 80 || port == 8080 {
+	if ok, wantsTLS := tryHTTP(); ok && !wantsTLS {
 		return "http"
 	}
 	if tryTLS() {

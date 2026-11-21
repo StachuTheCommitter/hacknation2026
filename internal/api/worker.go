@@ -70,6 +70,10 @@ func (s *Server) workerRoutes(r chi.Router) {
 			writeJSON(w, req, 200, map[string]any{"ok": true, "server_time": time.Now()})
 		})
 		r.Post("/lease", func(w http.ResponseWriter, req *http.Request) {
+			var h model.Hello
+			if json.NewDecoder(io.LimitReader(req.Body, 1<<20)).Decode(&h) == nil && h.Capabilities != nil {
+				s.App.UpdateWorkerCaps(req.Context(), req.Header.Get("X-Worker-ID"), h)
+			}
 			l, err := s.App.Lease(req.Context(), req.Header.Get("X-Worker-ID"))
 			if err != nil {
 				writeErr(w, 500, "internal", err.Error(), nil)

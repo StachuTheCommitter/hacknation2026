@@ -205,7 +205,14 @@ func (w *Worker) portscan(ctx context.Context, targets []string, ports string, p
 	}
 	defer cleanup()
 	open := map[string][]model.PortHit{}
-	if p.PortscanEngine == "naabu" && w.tools["naabu"] != "" {
+	loopback := false
+	for _, t := range targets {
+		if a, err := netip.ParseAddr(t); err == nil && a.IsLoopback() {
+			loopback = true
+		}
+	}
+	// naabu (SYN/pcap) nie działa na interfejsie loopback – tam zawsze nmap -sT
+	if p.PortscanEngine == "naabu" && w.tools["naabu"] != "" && !loopback {
 		scanType := "c"
 		if w.privileged {
 			scanType = "s"
@@ -257,7 +264,7 @@ func (w *Worker) portscan(ctx context.Context, targets []string, ports string, p
 		slog.Warn("naabu nie powiódł się, używam nmap", "err", err)
 	}
 	scan := "-sT"
-	if w.privileged {
+	if w.privileged && !loopback {
 		scan = "-sS"
 	}
 	args := []string{scan, "-Pn", "-n", "-p", spec, "--open", "--max-rate", strconv.Itoa(max(rate, 10)), "--max-retries", strconv.Itoa(max(p.Retries, 1)),
@@ -670,9 +677,7 @@ func (w *Worker) probe(ctx context.Context, l *model.Lease, scope netx.Scope) (*
 			}
 			s.HTTP = results
 			if s.Service == "" || s.Service == "tcpwrapped" || strings.HasSuffix(s.Service, "?") || s.Nmap == nil || s.Nmap.Method == "table" {
-				if s.Service == "" || s.Nmap == nil || s.Nmap.Method == "table" {
-					s.Service = schemeBy[hk]
-				}
+				s.Service = schemeBy[hk]
 			}
 		}
 	}

@@ -1,0 +1,18 @@
+# Dodatkowy worker w sieci hosta – do skanowania usług wystawionych na porty tej samej maszyny
+# (np. szablon laboratorium organizatorów uruchomiony obok ASI: 127.0.0.1:8080, :8787, ...).
+#   docker compose -f docker-compose.yml -f deploy/worker-hostnet.yml up -d
+# Pamiętaj o dodaniu 127.0.0.1 (lub adresu hosta) do scope w Administracja → Zakres skanowania.
+services:
+  worker-host:
+    image: asi-worker:local
+    build: {context: ., dockerfile: deploy/Dockerfile, target: worker}
+    network_mode: host
+    depends_on: [server]
+    environment:
+      ASI_SERVER_URL: http://127.0.0.1:${ASI_PORT:-8800}
+      ASI_WORKER_TOKEN: ${ASI_WORKER_TOKEN}
+      ASI_WORKER_NAME: worker-host
+      ASI_WORKER_VANTAGE: "sieć hosta (localhost)"
+      ASI_WORKER_LOOPBACK: "1"
+    cap_add: [NET_RAW, NET_ADMIN]
+    restart: unless-stopped

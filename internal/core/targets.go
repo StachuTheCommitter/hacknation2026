@@ -468,10 +468,14 @@ outer:
 				rep.Rejected = append(rep.Rejected, Rejected{v, "poza dozwolonym zakresem (scope) – dodaj zakres w Administracja → Scope"})
 				continue
 			}
+			// adresy specjalne (loopback – np. lab na tej samej maszynie) są dozwolone tylko, gdy administrator
+			// jawnie dodał je do scope; multicast nigdy
 			for _, r := range t.Ranges {
-				if a := netx.U32ToAddr(r.Start); netx.Special(a) {
-					rep.Rejected = append(rep.Rejected, Rejected{v, "adres specjalny (loopback, link-local, multicast)"})
+				if a := netx.U32ToAddr(r.Start); a.IsMulticast() || a.IsUnspecified() {
+					rep.Rejected = append(rep.Rejected, Rejected{v, "adres specjalny (multicast / 0.0.0.0)"})
 					continue outer
+				} else if a.IsLoopback() {
+					rep.Notes = append(rep.Notes, v+": adres loopback – skanowany z workera w trybie TCP connect (worker musi działać w sieci hosta)")
 				}
 			}
 			if ex := netx.Intersect(t.Ranges, scope.Exclude); len(ex) > 0 {

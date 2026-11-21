@@ -105,6 +105,7 @@ func (w *Worker) detect() {
 	w.caps["naabu"] = w.tools["naabu"] != ""
 	w.caps["nmap"] = w.tools["nmap"] != ""
 	w.caps["nuclei"] = w.tools["nuclei"] != ""
+	w.caps["loopback"] = os.Getenv("ASI_WORKER_LOOPBACK") == "1" // worker w sieci hosta – może skanować 127.0.0.1
 	if !w.privileged {
 		w.warn = append(w.warn, "brak uprawnień NET_RAW – skan w trybie TCP connect (wolniejszy, inna charakterystyka ruchu); dodaj cap_add: [NET_RAW, NET_ADMIN]")
 	}
@@ -145,7 +146,8 @@ func (w *Worker) Run(ctx context.Context) error {
 			return nil
 		}
 		var lease model.Lease
-		code, err := w.call(ctx, "/lease", map[string]any{}, &lease)
+		// możliwości wysyłane przy każdym żądaniu – serwer zna je także po restarcie / resecie bazy
+		code, err := w.call(ctx, "/lease", model.Hello{Name: w.cfg.WorkerName, Version: "1.0", Capabilities: w.caps, Tools: w.tools, Warnings: w.warn}, &lease)
 		if err != nil || code == http.StatusNoContent {
 			<-slots
 			if err != nil {

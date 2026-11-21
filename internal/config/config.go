@@ -24,6 +24,7 @@ type Config struct {
 	GlobalMaxPPS      int
 	ScannerContact    string
 	DDURL, DDToken    string
+	DDUser, DDPass    string
 	WorkerTokens      string
 	SecureCookies     bool
 
@@ -75,6 +76,8 @@ func Load() Config {
 		ScannerContact:    env("ASI_SCANNER_CONTACT", "cbi@agh.edu.pl"),
 		DDURL:             strings.TrimRight(env("ASI_DD_URL", ""), "/"),
 		DDToken:           env("ASI_DD_TOKEN", ""),
+		DDUser:            env("ASI_DD_USER", ""),
+		DDPass:            env("ASI_DD_PASSWORD", ""),
 		WorkerTokens:      env("ASI_WORKER_BOOTSTRAP_TOKENS", ""),
 		SecureCookies:     envBool("ASI_SECURE_COOKIES", false),
 		ServerURL:         strings.TrimRight(env("ASI_SERVER_URL", "http://localhost:8080"), "/"),
