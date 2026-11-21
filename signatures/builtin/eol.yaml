@@ -66,8 +66,8 @@ match:
 export: {defectdojo: true, title: "End-of-life Microsoft IIS"}
 ---
 id: svc-exposed-database
-name: Baza danych dostępna sieciowo
-version: 1
+name: Baza danych lub broker dostępny sieciowo
+version: 2
 scope: service
 categories: [exposed_service]
 priority: 25
@@ -75,7 +75,7 @@ severity: low
 confidence: 0.85
 match:
   any:
-    - {part: service, op: in, value: [mysql, postgresql, ms-sql-s, mongodb, redis, oracle-tns, memcached, elasticsearch]}
+    - {part: service, op: in, value: [mysql, postgresql, ms-sql-s, mongodb, redis, oracle-tns, memcached, elasticsearch, amqp, mqtt, rabbitmq]}
 export: {defectdojo: true, title: "Database service reachable over the network"}
 ---
 id: svc-cleartext-protocol

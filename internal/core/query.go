@@ -327,6 +327,7 @@ type WebRow struct {
 	Categories  json.RawMessage `json:"categories"`
 	Matches     json.RawMessage `json:"matches"`
 	ClusterKey  string          `json:"cluster_key"`
+	ResponseMs  int             `json:"response_ms"`
 	Overrides   map[string]any  `json:"overrides,omitempty"`
 }
 
@@ -335,13 +336,13 @@ const webCols = `e.id, host(h.ip)||'/tcp/'||s.port||'/'||e.scheme||'/'||coalesce
 	(select coalesce(jsonb_agg(jsonb_build_object('name',t.name,'version',t.version,'category',t.category,'confidence',round(t.confidence::numeric,2),'version_confidence',round(t.version_confidence::numeric,2),'evidence',t.evidence) order by t.confidence desc),'[]') from technologies t where t.entity_type='http' and t.entity_id=e.id and t.active),
 	(select coalesce(jsonb_agg(jsonb_build_object('category',c.category,'confidence',round(c.confidence::numeric,2),'evidence',c.evidence) order by c.confidence desc),'[]') from classifications c where c.entity_type='http' and c.entity_id=e.id and c.active and c.confidence>=0.3),
 	(select coalesce(jsonb_agg(jsonb_build_object('sig_id',m.sig_id,'evidence',m.evidence,'first_seen',m.first_seen) order by m.sig_id),'[]') from signature_matches m where m.entity_type='http' and m.entity_id=e.id and m.active),
-	e.cluster_key`
+	e.cluster_key, e.response_ms`
 
 func scanWeb(r pgx.CollectableRow) (WebRow, error) {
 	var w WebRow
 	var ck, tls, br, techs, cats, ms []byte
 	err := r.Scan(&w.ID, &w.Key, &w.IP, &w.Port, &w.Scheme, &w.Vhost, &w.URL, &w.State, &w.Status, &w.Title, &w.Server, &w.PoweredBy, &w.HeaderNames, &ck,
-		&w.FinalURL, &w.Favicon, &tls, &w.Labels, &w.Score, &br, &w.FirstSeen, &w.LastSeen, &techs, &cats, &ms, &w.ClusterKey)
+		&w.FinalURL, &w.Favicon, &tls, &w.Labels, &w.Score, &br, &w.FirstSeen, &w.LastSeen, &techs, &cats, &ms, &w.ClusterKey, &w.ResponseMs)
 	w.Cookies, w.TLS, w.Breakdown, w.Techs, w.Categories, w.Matches = ck, tls, br, techs, cats, ms
 	return w, err
 }
@@ -781,7 +782,7 @@ var changeLabels = map[string]string{
 	"HOST_NEW": "nowy host", "HOST_GONE": "host zniknął", "HOST_RETURNED": "host wrócił", "SERVICE_NEW": "nowa usługa", "SERVICE_GONE": "usługa zniknęła",
 	"SERVICE_RETURNED": "usługa wróciła", "SERVICE_CHANGED": "zmiana usługi", "HTTP_CHANGED": "zmiana strony WWW", "TLS_CHANGED": "zmiana certyfikatu",
 	"IDENTITY_CHANGED": "inne urządzenie pod adresem", "SIGNATURE_MATCH_NEW": "nowe dopasowanie sygnatury", "SIGNATURE_MATCH_GONE": "sygnatura przestała pasować",
-	"STATE_FLAPPING": "niestabilna dostępność", "STATE_PERIODIC": "dostępność zależna od pory dnia", "DOMAIN_OUT_OF_SCOPE": "domena poza zakresem",
+	"STATE_FLAPPING": "niestabilna dostępność", "RESPONSE_SLOW": "wolna odpowiedź", "HOST_MISSING": "host nie odpowiada", "SERVICE_MISSING": "usługa nie odpowiada", "RESPONSE_NORMAL": "odpowiedź znów szybka", "STATE_PERIODIC": "dostępność zależna od pory dnia", "DOMAIN_OUT_OF_SCOPE": "domena poza zakresem",
 }
 
 func changeLabel(t string) string {

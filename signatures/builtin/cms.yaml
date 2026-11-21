@@ -1,7 +1,7 @@
 id: cms-wordpress
 name: WordPress
 description: Strona zbudowana na WordPress (generator, ścieżki wp-content, cookies).
-version: 1
+version: 2
 scope: http
 categories: [cms]
 priority: 10
@@ -9,10 +9,11 @@ confidence: 0.85
 technology:
   name: WordPress
   category: cms
-  version_from: {part: body, regex: '<meta name="generator" content="WordPress ([0-9.]+)'}
+  version_from: {part: body, regex: '(?:<meta name="generator" content="WordPress |\?ver=)([0-9]+\.[0-9.]+)'}
 match:
   any:
     - {part: body, op: regex, value: '<meta name="generator" content="WordPress'}
+    - {part: body, op: contains, value: '/wp-includes/'}
     - {part: body, op: contains, value: '/wp-content/'}
     - {part: header, name: Link, op: contains, value: 'api.w.org'}
 ---

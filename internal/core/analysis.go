@@ -102,7 +102,7 @@ func (a *App) temporalFactor(ctx context.Context, entityID string) float64 {
 // ---------------- mapowanie kategorii ----------------
 
 var wappCategory = map[string]string{
-	"cms": "cms", "blogs": "cms", "wikis": "cms", "lms": "cms", "ecommerce": "cms", "message boards": "cms", "documentation": "cms",
+	"cms": "cms", "blogs": "cms", "wikis": "cms", "lms": "cms", "ecommerce": "cms", "message boards": "cms", "documentation": "api_docs",
 	"web frameworks": "framework", "web servers": "web_server", "reverse proxies": "web_server", "programming languages": "language",
 	"databases": "database", "database managers": "admin_panel", "control systems": "iot", "webcams": "iot", "network devices": "iot",
 	"hosting panels": "admin_panel", "dev tools": "dev_tools", "ci": "admin_panel", "issue trackers": "app",
@@ -183,6 +183,9 @@ func httpBase(ip string, port int, hostnames []string, h *obs.HTTP, techs []obs.
 	}
 	addTLS(m, h.TLS)
 	m.Add("cleartext_login", boolStr(h.CleartextLogin))
+	if h.ResponseMs > 0 {
+		m.Add("response_ms", strconv.Itoa(h.ResponseMs))
+	}
 	return m
 }
 
@@ -516,6 +519,10 @@ func (a *App) analyzeService(ctx context.Context, ic *ingestCtx, hostID, svcID, 
 			conf = float64(s.Nmap.Conf) / 10 * 0.9
 		}
 	}
+	// usługa odpowiedziała po HTTP – sam protokół jest pewny, nawet gdy nmap zgadł nazwę z numeru portu
+	if len(s.HTTP) > 0 && conf < 0.8 && strings.HasPrefix(s.Service, "http") {
+		conf = 0.85
+	}
 	vconf := 0.0
 	if s.Version != "" {
 		vconf = conf * 0.9
@@ -584,13 +591,14 @@ type ScoreItem struct {
 
 var categoryPoints = map[string]int{
 	"admin_panel": 30, "debug_exposure": 35, "cleartext_login": 25, "staging": 20, "eol_software": 25, "iot": 20,
-	"default_page": 10, "tls_issue": 10, "exposed_service": 15, "weak_config": 5, "info_disclosure": 3, "cms": 5, "framework": 2, "app_server": 2,
+	"default_page": 10, "tls_issue": 10, "exposed_installer": 40, "exposed_service": 15, "weak_config": 5, "info_disclosure": 3, "cms": 5, "framework": 2, "app_server": 2,
 }
 
 var CategoryLabels = map[string]string{
 	"admin_panel": "panel administracyjny", "debug_exposure": "ekspozycja debug / plików", "cleartext_login": "logowanie przez HTTP",
 	"staging": "środowisko testowe", "eol_software": "oprogramowanie bez wsparcia", "iot": "urządzenie IoT", "default_page": "strona domyślna",
 	"tls_issue": "problem z TLS", "exposed_service": "usługa wystawiona do sieci", "weak_config": "słaba konfiguracja", "info_disclosure": "ujawnienie wersji",
+	"exposed_installer": "instalator dostępny publicznie", "slow_response": "wolna odpowiedź", "app": "aplikacja",
 	"cms": "CMS", "framework": "framework", "app_server": "serwer aplikacyjny", "web_server": "serwer WWW", "technology": "technologia",
 }
 

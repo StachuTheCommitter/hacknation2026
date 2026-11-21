@@ -67,11 +67,12 @@ export const catLabel: Record<string, string> = {
   admin_panel: 'panel admina', debug_exposure: 'ekspozycja debug', cleartext_login: 'logowanie po HTTP', staging: 'staging / test',
   eol_software: 'bez wsparcia (EOL)', iot: 'IoT', default_page: 'strona domyślna', tls_issue: 'problem TLS', exposed_service: 'usługa wystawiona',
   weak_config: 'słaba konfiguracja', info_disclosure: 'ujawnienie wersji', cms: 'CMS', framework: 'framework', app_server: 'serwer aplikacyjny',
-  web_server: 'serwer WWW', technology: 'technologia', manual: 'ręcznie',
+  web_server: 'serwer WWW', technology: 'technologia', manual: 'ręcznie', exposed_installer: 'instalator dostępny',
+  slow_response: 'wolna odpowiedź', app: 'aplikacja',
 }
 const catColor: Record<string, string> = {
   admin_panel: 'red', debug_exposure: 'red', cleartext_login: 'amber', staging: 'amber', eol_software: 'amber', iot: 'violet', tls_issue: 'amber',
-  exposed_service: 'amber', cms: 'blue', framework: 'blue', app_server: 'blue', default_page: '',
+  exposed_service: 'amber', exposed_installer: 'red', slow_response: 'amber', cms: 'blue', framework: 'blue', app_server: 'blue', default_page: '',
 }
 export function Cat({ c, conf }: { c: string; conf?: number }) {
   return <span className={'badge ' + (catColor[c] || '')} title={conf !== undefined ? `pewność ${pct(conf)}` : undefined}>{catLabel[c] || c}</span>
@@ -96,11 +97,11 @@ export const changeText: Record<string, string> = {
   HOST_NEW: 'nowy host', HOST_GONE: 'host zniknął', HOST_RETURNED: 'host wrócił', SERVICE_NEW: 'nowa usługa', SERVICE_GONE: 'usługa zniknęła',
   SERVICE_RETURNED: 'usługa wróciła', SERVICE_CHANGED: 'zmiana usługi', HTTP_CHANGED: 'zmiana WWW', TLS_CHANGED: 'zmiana certyfikatu',
   IDENTITY_CHANGED: 'inne urządzenie', SIGNATURE_MATCH_NEW: 'nowa sygnatura', SIGNATURE_MATCH_GONE: 'sygnatura znikła', STATE_FLAPPING: 'niestabilność',
-  STATE_PERIODIC: 'okresowość', DOMAIN_OUT_OF_SCOPE: 'domena poza scope',
+  STATE_PERIODIC: 'okresowość', DOMAIN_OUT_OF_SCOPE: 'domena poza scope', RESPONSE_SLOW: 'wolna odpowiedź', RESPONSE_NORMAL: 'odpowiedź szybka', HOST_MISSING: 'host nie odpowiada', SERVICE_MISSING: 'usługa nie odpowiada',
 }
 const changeColor: Record<string, string> = {
   HOST_NEW: 'blue', SERVICE_NEW: 'blue', HOST_GONE: '', SERVICE_GONE: '', HOST_RETURNED: 'green', SERVICE_RETURNED: 'green',
-  SERVICE_CHANGED: 'amber', HTTP_CHANGED: 'amber', TLS_CHANGED: 'amber', IDENTITY_CHANGED: 'red', SIGNATURE_MATCH_NEW: 'red', STATE_FLAPPING: 'amber', STATE_PERIODIC: 'violet',
+  SERVICE_CHANGED: 'amber', HTTP_CHANGED: 'amber', RESPONSE_SLOW: 'amber', RESPONSE_NORMAL: 'green', HOST_MISSING: 'amber', SERVICE_MISSING: 'amber', TLS_CHANGED: 'amber', IDENTITY_CHANGED: 'red', SIGNATURE_MATCH_NEW: 'red', STATE_FLAPPING: 'amber', STATE_PERIODIC: 'violet',
 }
 export function ChangeType({ t }: { t: string }) {
   return <span className={'badge ' + (changeColor[t] || '')}>{changeText[t] || t}</span>
@@ -230,4 +231,9 @@ export function Heatmap({ data }: { data: (number | null)[][] }) {
 export function Copy({ text }: { text: string }) {
   const toast = useToast()
   return <button className="ghost sm" title="Kopiuj" onClick={() => { navigator.clipboard?.writeText(text); toast('Skopiowano') }}>kopiuj</button>
+}
+
+export function Ms({ v }: { v?: number }) {
+  if (!v) return <span className="faint">—</span>
+  return <span className={v >= 1000 ? 'conflict' : v >= 400 ? 'muted' : 'faint'} title="czas odpowiedzi na GET /">{v >= 1000 ? (v / 1000).toFixed(1) + ' s' : v + ' ms'}</span>
 }

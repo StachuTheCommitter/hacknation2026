@@ -142,7 +142,7 @@ func (a *App) ingestSweep(ctx context.Context, run *Run, taskID, worker string, 
 			}
 		}
 		ph := model.ProbeHost{IP: h.IP, Ports: ports}
-		rows, _ := a.DB.Query(ctx, `select name from host_hostnames where host_id=$1 and source in ('dns','manual','tls_san','http_redirect') order by name limit 10`, hostID)
+		rows, _ := a.DB.Query(ctx, `select name from host_hostnames where host_id=$1 and source in ('dns','manual') order by name limit 10`, hostID)
 		for rows.Next() {
 			var n string
 			rows.Scan(&n)
@@ -310,9 +310,14 @@ func (a *App) touchService(ctx context.Context, ic *ingestCtx, hostID, ip, proto
 	var id string
 	var inserted bool
 	var probed *time.Time
+	var svcName string
 	err := a.DB.QueryRow(ctx, `insert into services(host_id,proto,port,first_seen,last_seen,last_run_id) values($1,$2,$3,$4,$4,$5)
 		on conflict(host_id,proto,port) do update set last_seen=greatest(services.last_seen,excluded.last_seen), last_run_id=coalesce(excluded.last_run_id,services.last_run_id)
-		returning id, (xmax=0), probed_at`, hostID, proto, port, at, nullUUID(ic.runID)).Scan(&id, &inserted, &probed)
+		returning id, (xmax=0), probed_at, service_name`, hostID, proto, port, at, nullUUID(ic.runID)).Scan(&id, &inserted, &probed, &svcName)
+	// usługa bez pewnej identyfikacji (tcpwrapped, „?”) nie jest „znana” – w trybie szybkim mierzymy ją ponownie
+	if svcName == "" || svcName == "tcpwrapped" || strings.HasSuffix(svcName, "?") {
+		probed = nil
+	}
 	if err != nil {
 		return "", false, false, err
 	}
@@ -628,6 +633,22 @@ func (a *App) upsertHTTP(ctx context.Context, ic *ingestCtx, hostID, svcID, ip s
 	if inserted && ic.source != "scanner" {
 		ic.change("http", key, ip, "SERVICE_NEW", "Nowy endpoint WWW "+h.URL, 10, nil, nil)
 	}
+	// czas odpowiedzi: zdarzenie przy przekroczeniu progu 1 s (np. opóźnienie wprowadzone przez proxy)
+	if h.ResponseMs > 0 {
+		var prevMs int
+		a.DB.QueryRow(ctx, `select response_ms from http_endpoints where id=$1`, id).Scan(&prevMs)
+		// zmiana względna (≥ 2× i ≥ 300 ms) – np. opóźnienie wprowadzone przez proxy (Toxiproxy) albo przeciążenie
+		slower := h.ResponseMs >= 2*prevMs && h.ResponseMs-prevMs >= 300
+		faster := prevMs >= 2*h.ResponseMs && prevMs-h.ResponseMs >= 300
+		if !inserted && prevMs > 0 && (slower || faster) {
+			typ, txt := "RESPONSE_SLOW", fmt.Sprintf("%s odpowiada wolniej: %d ms (wcześniej %d ms)", h.URL, h.ResponseMs, prevMs)
+			if faster {
+				typ, txt = "RESPONSE_NORMAL", fmt.Sprintf("%s znów odpowiada szybciej: %d ms (wcześniej %d ms)", h.URL, h.ResponseMs, prevMs)
+			}
+			ic.change("http", key, ip, typ, txt, 8, []FieldDiff{{"response_ms", prevMs, h.ResponseMs}}, nil)
+		}
+		a.DB.Exec(ctx, `update http_endpoints set response_ms=$2 where id=$1`, id, h.ResponseMs)
+	}
 	techs := a.analyzeHTTP(ctx, ic, hostID, id, key, ip, s.Port, h, hostnames, inserted)
 	stable := obs.HTTPStable(*h, techs)
 	fp := a.Keys.MAC(obs.Canonical(stable))
@@ -659,7 +680,8 @@ func (a *App) upsertHTTP(ctx context.Context, ic *ingestCtx, hostID, svcID, ip s
 	if h.TLS != nil {
 		for _, n := range append([]string{h.TLS.SubjectCN}, h.TLS.SAN...) {
 			n = strings.ToLower(strings.TrimPrefix(n, "*."))
-			if n != "" && strings.Contains(n, ".") && !strings.ContainsAny(n, " *") {
+			// nazwy z certyfikatów to tylko kandydaci (nie sondujemy ich jako vhostów); pomijamy domyślne certyfikaty
+			if n != "" && strings.Contains(n, ".") && !strings.ContainsAny(n, " *") && !strings.HasSuffix(n, ".traefik.default") && n != "localhost" {
 				a.DB.Exec(ctx, `insert into host_hostnames(host_id,name,source) values($1,$2,'tls_san') on conflict(host_id,name) do update set last_seen=now()`, hostID, n)
 			}
 		}

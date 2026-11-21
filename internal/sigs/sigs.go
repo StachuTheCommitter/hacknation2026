@@ -99,7 +99,7 @@ var partsByScope = map[string]map[string]bool{
 	"http": set("status", "title", "header", "header_names", "cookie_name", "cookie", "body", "body_hash",
 		"favicon_mmh3", "final_url", "redirect_location", "redirect_chain", "tech", "tech_version",
 		"tls_subject_cn", "tls_san", "tls_issuer", "tls_expired", "tls_days_left", "tls_self_signed", "tls_version",
-		"vhost", "scheme", "port", "soft404", "path", "hostname", "cleartext_login", "length", "ip", "headers_raw", "pattern_match", "cookie_insecure_session"),
+		"vhost", "scheme", "port", "soft404", "path", "hostname", "cleartext_login", "length", "ip", "headers_raw", "pattern_match", "cookie_insecure_session", "response_ms"),
 	"service": set("port", "proto", "service", "product", "version", "extrainfo", "cpe", "banner", "devicetype",
 		"tunnel", "tls_subject_cn", "tls_san", "tls_issuer", "tls_expired", "tls_days_left", "tls_self_signed",
 		"tls_version", "hostname", "ip"),

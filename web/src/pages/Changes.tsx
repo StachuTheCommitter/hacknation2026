@@ -5,7 +5,7 @@ import { ChangeType, Empty, HostLink, Panel, Score, SearchBox, Tabs, Top, ago, d
 import { DiffFields, fmt } from './Host'
 
 const groups: [string, string][] = [
-  ['', 'Wszystkie'], ['HOST_NEW,SERVICE_NEW', 'Nowe'], ['HOST_GONE,SERVICE_GONE', 'Zniknęły'], ['SERVICE_CHANGED,HTTP_CHANGED,TLS_CHANGED,IDENTITY_CHANGED', 'Zmienione'],
+  ['', 'Wszystkie'], ['HOST_NEW,SERVICE_NEW', 'Nowe'], ['HOST_MISSING,SERVICE_MISSING,HOST_GONE,SERVICE_GONE', 'Zniknęły'], ['SERVICE_CHANGED,HTTP_CHANGED,TLS_CHANGED,IDENTITY_CHANGED', 'Zmienione'],
   ['SIGNATURE_MATCH_NEW,SIGNATURE_MATCH_GONE', 'Sygnatury'], ['STATE_FLAPPING,STATE_PERIODIC,HOST_RETURNED,SERVICE_RETURNED', 'Dostępność'],
 ]
 

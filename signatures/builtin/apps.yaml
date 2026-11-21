@@ -1,0 +1,210 @@
+id: installer-wordpress
+name: Nieukończona instalacja WordPress
+description: Instalator WordPress dostępny publicznie – pierwsza osoba, która go dokończy, przejmuje witrynę.
+version: 1
+scope: http
+categories: [exposed_installer, cms]
+severity: medium
+priority: 45
+confidence: 0.9
+technology:
+  name: WordPress
+  category: cms
+  version_from: {part: body, regex: 'install(?:\.min)?\.css\?ver=([0-9.]+)'}
+match:
+  any:
+    - {part: redirect_location, op: contains, value: /wp-admin/install.php}
+    - {part: title, op: icontains, value: "WordPress › Installation"}
+    - {part: title, op: icontains, value: "WordPress &rsaquo; Installation"}
+    - {part: body, op: contains, value: 'wp-admin/css/install'}
+export: {defectdojo: true, title: "WordPress installer exposed (installation not completed)"}
+---
+id: installer-wordpress-path
+name: Instalator WordPress pod /wp-admin/install.php
+version: 1
+scope: http
+categories: [exposed_installer, cms]
+severity: medium
+priority: 45
+confidence: 0.9
+technology:
+  name: WordPress
+  category: cms
+  version_from: {part: body, regex: 'install(?:\.min)?\.css\?ver=([0-9.]+)'}
+request: {method: GET, path: /wp-admin/install.php}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: soft404, op: equals, value: "false"}
+    - {part: body, op: regex, value: 'id="setup"|name="weblog_title"|wp-admin/css/install'}
+export: {defectdojo: true, title: "WordPress installer exposed (installation not completed)"}
+---
+id: app-gitea
+name: Gitea
+version: 1
+scope: http
+categories: [app, admin_panel]
+priority: 15
+confidence: 0.9
+technology:
+  name: Gitea
+  category: dev_tools
+  version_from: {part: body, regex: 'Powered by Gitea[^0-9]{0,40}([0-9][0-9.]+)'}
+match:
+  any:
+    - {part: title, op: icontains, value: "Gitea: Git with a cup of tea"}
+    - {part: cookie_name, op: equals, value: i_like_gitea}
+    - {part: body, op: contains, value: 'Powered by Gitea'}
+---
+id: installer-gitea
+name: Nieukończona instalacja Gitea
+version: 1
+scope: http
+categories: [exposed_installer]
+severity: medium
+priority: 45
+confidence: 0.9
+match:
+  all:
+    - {part: title, op: icontains, value: gitea}
+    - {part: title, op: regex, value: '(?i)install'}
+export: {defectdojo: true, title: "Gitea installer exposed (installation not completed)"}
+---
+id: panel-rabbitmq
+name: RabbitMQ Management
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 30
+confidence: 0.9
+technology: {name: RabbitMQ, category: message_broker}
+match:
+  any:
+    - {part: title, op: icontains, value: "RabbitMQ Management"}
+    - {part: body, op: contains, value: 'rabbitmq'}
+export: {defectdojo: true, title: "RabbitMQ management interface exposed"}
+---
+id: panel-traefik
+name: Dashboard Traefik
+description: Dashboard i API Traefika (często uruchamiane z --api.insecure).
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 35
+severity: low
+confidence: 0.85
+technology: {name: Traefik, category: web_server}
+match:
+  any:
+    - {part: redirect_location, op: contains, value: /dashboard/}
+    - {part: title, op: icontains, value: traefik}
+    - {part: body, op: contains, value: 'traefik'}
+export: {defectdojo: true, title: "Traefik dashboard / API exposed"}
+---
+id: panel-traefik-api
+name: API Traefika bez uwierzytelnienia
+version: 1
+scope: http
+categories: [admin_panel, debug_exposure]
+priority: 40
+severity: medium
+confidence: 0.95
+technology: {name: Traefik, category: web_server}
+request: {method: GET, path: /api/overview}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: body, op: contains, value: '"routers"'}
+    - {part: body, op: contains, value: '"providers"'}
+export: {defectdojo: true, title: "Traefik API exposed without authentication"}
+---
+id: panel-nginx-proxy-manager
+name: Nginx Proxy Manager
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 30
+confidence: 0.9
+technology: {name: Nginx Proxy Manager, category: admin_panel}
+match:
+  any:
+    - {part: title, op: icontains, value: "Nginx Proxy Manager"}
+    - {part: body, op: contains, value: 'Nginx Proxy Manager'}
+export: {defectdojo: true, title: "Nginx Proxy Manager admin panel exposed"}
+---
+id: panel-adminer
+name: Adminer
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 35
+confidence: 0.9
+technology:
+  name: Adminer
+  category: admin_panel
+  version_from: {part: body, regex: '<span class="version">([0-9.]+)'}
+match:
+  any:
+    - {part: title, op: icontains, value: adminer}
+    - {part: cookie_name, op: equals, value: adminer_sid}
+    - {part: body, op: contains, value: 'adminer.org'}
+export: {defectdojo: true, title: "Adminer database admin panel exposed"}
+---
+id: app-dvwa
+name: DVWA (celowo podatna aplikacja)
+description: Damn Vulnerable Web Application – aplikacja szkoleniowa, nie powinna być dostępna w sieci.
+version: 1
+scope: http
+categories: [staging, admin_panel]
+priority: 40
+severity: medium
+confidence: 0.95
+technology: {name: DVWA, category: app}
+match:
+  any:
+    - {part: title, op: icontains, value: "Damn Vulnerable Web Application"}
+    - {part: body, op: contains, value: 'dvwa/css'}
+    - {part: redirect_location, op: contains, value: login.php}
+export: {defectdojo: true, title: "Intentionally vulnerable application (DVWA) exposed"}
+---
+id: app-httpbin
+name: httpbin (usługa testowa HTTP)
+version: 1
+scope: http
+categories: [staging]
+priority: 15
+confidence: 0.9
+technology: {name: httpbin, category: dev_tools}
+match:
+  any:
+    - {part: title, op: icontains, value: httpbin}
+    - {part: body, op: contains, value: 'A simple HTTP Request &amp; Response Service'}
+---
+id: app-toxiproxy
+name: API Toxiproxy
+description: API do wstrzykiwania awarii sieciowych – pozwala dowolnie modyfikować ruch przechodzący przez proxy.
+version: 1
+scope: http
+categories: [admin_panel, debug_exposure]
+priority: 40
+severity: medium
+confidence: 0.9
+technology: {name: Toxiproxy, category: dev_tools}
+request: {method: GET, path: /proxies}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: body, op: contains, value: '"upstream"'}
+export: {defectdojo: true, title: "Toxiproxy control API exposed"}
+---
+id: http-slow-response
+name: Wolna odpowiedź HTTP (> 1 s)
+description: Endpoint odpowiada wolniej niż 1 s – możliwe opóźnienie sieci, przeciążenie lub proxy z opóźnieniem.
+version: 1
+scope: http
+categories: [slow_response]
+priority: 5
+confidence: 1.0
+match:
+  any:
+    - {part: response_ms, op: gt, value: 1000}

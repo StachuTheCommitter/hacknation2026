@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, qs, useApi } from '../api'
-import { Breakdown, Cat, ChangeType, Conf, Copy, Empty, FStatus, Heatmap, Labels, Modal, Panel, Score, Sev, State, Top, ago, catLabel, dt, pct, useAuth, useToast } from '../ui'
+import { Breakdown, Cat, ChangeType, Conf, Copy, Empty, FStatus, Heatmap, Labels, Modal, Ms, Panel, Score, Sev, State, Top, ago, catLabel, dt, pct, useAuth, useToast } from '../ui'
 import { TLSCell } from './Assets'
 
 export default function Host() {
@@ -143,6 +143,7 @@ function WebBlock({ w }: { w: any; reload: () => void }) {
       </dl>
       <dl className="kv">
         <dt>TLS</dt><dd>{tls ? <><TLSCell t={tls} /><div className="small">{tls.subject_cn}{tls.san?.length ? ` (+${tls.san.length} SAN)` : ''}<br /><span className="muted">{tls.issuer}</span><br />ważny do {dt(tls.not_after)}</div></> : '—'}</dd>
+        <dt>Czas odpowiedzi</dt><dd><Ms v={w.response_ms} /></dd>
         <dt>Widziany</dt><dd className="small">{dt(w.first_seen)} – {ago(w.last_seen)}</dd>
       </dl>
     </div>

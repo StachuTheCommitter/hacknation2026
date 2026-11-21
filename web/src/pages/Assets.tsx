@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { download, qs, useApi } from '../api'
-import { Cat, Conf, Empty, HostLink, Labels, Pager, Panel, Score, SearchBox, State, Tabs, Top, ago, num, useAuth } from '../ui'
+import { Cat, Conf, Empty, HostLink, Labels, Ms, Pager, Panel, Score, SearchBox, State, Tabs, Top, ago, num, useAuth } from '../ui'
 
 const tabs: [string, string][] = [['hosts', 'Hosty'], ['services', 'Usługi'], ['web', 'Strony WWW'], ['tech', 'Technologie']]
 const hints: Record<string, string> = {
@@ -104,7 +104,7 @@ function Web({ q, offset, setOffset }: { q: string; offset: number; setOffset: (
   if (!data.items.length) return <Panel><Empty title="Brak stron WWW" /></Panel>
   return <Panel pad={false}>
     <div className="table-wrap"><table className="tbl">
-      <thead><tr><th style={{ width: 52 }}>Ocena</th><th>Adres</th><th className="num">Kod</th><th>Tytuł</th><th>Technologie</th><th>Kategorie</th><th>TLS</th></tr></thead>
+      <thead><tr><th style={{ width: 52 }}>Ocena</th><th>Adres</th><th className="num">Kod</th><th>Tytuł</th><th>Technologie</th><th>Kategorie</th><th>TLS</th><th className="num">Czas</th></tr></thead>
       <tbody>{data.items.map((w: any) => {
         const techs = (w.techs || []) as any[]
         const cats = (w.categories || []) as any[]
@@ -116,6 +116,7 @@ function Web({ q, offset, setOffset }: { q: string; offset: number; setOffset: (
           <td className="small">{techs.slice(0, 4).map((t, i) => <span key={t.name} title={`pewność ${Math.round(t.confidence * 100)}%`}>{i > 0 && ' · '}{t.name}{t.version ? ' ' + t.version : ''}</span>)}</td>
           <td><div className="row tight">{cats.filter(c => c.confidence >= 0.45 && !['info_disclosure', 'weak_config'].includes(c.category)).map(c => <Cat key={c.category} c={c.category} conf={c.confidence} />)}</div></td>
           <td className="small nowrap">{w.tls ? <TLSCell t={w.tls} /> : <span className="faint">—</span>}</td>
+          <td className="num small nowrap"><Ms v={w.response_ms} /></td>
         </tr>
       })}</tbody>
     </table></div>

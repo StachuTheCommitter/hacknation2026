@@ -320,6 +320,9 @@ func (a *App) finalizeRun(ctx context.Context, r *Run) error {
 				ic.change(e.etype, e.key, e.ip, map[string]string{"host": "HOST_RETURNED", "service": "SERVICE_RETURNED", "http": "SERVICE_RETURNED"}[e.etype],
 					fmt.Sprintf("%s znów odpowiada", e.key), 8, nil, nil)
 				stats["returned"]++
+			} else if e.state == "SUSPECT" && e.etype != "http" {
+				ic.change(e.etype, e.key, e.ip, map[string]string{"host": "HOST_RETURNED", "service": "SERVICE_RETURNED"}[e.etype],
+					fmt.Sprintf("%s znów odpowiada (po %d brakach)", e.key, e.misses), 4, nil, nil)
 			}
 			newState = "ACTIVE"
 		} else {
@@ -340,6 +343,12 @@ func (a *App) finalizeRun(ctx context.Context, r *Run) error {
 				}
 				newState = "INACTIVE"
 			} else if e.state != "INACTIVE" {
+				if e.state == "ACTIVE" && e.etype != "http" {
+					// pierwszy brak (po powtórnych pomiarach) – widoczny od razu, ale jeszcze nie „zniknięcie”
+					ic.change(e.etype, e.key, e.ip, map[string]string{"host": "HOST_MISSING", "service": "SERVICE_MISSING"}[e.etype],
+						fmt.Sprintf("%s nie odpowiada – stan „podejrzany”; jako nieaktywne po %d brakach z rzędu i %s bez odpowiedzi", e.key, kEff, humanDur(tMin)), 8, nil, nil)
+					stats["missing"]++
+				}
 				newState = "SUSPECT"
 			}
 		}
@@ -582,4 +591,15 @@ func svcKeyOf(k string) string {
 		return strings.Join(p[:3], "/")
 	}
 	return k
+}
+
+func humanDur(d time.Duration) string {
+	switch {
+	case d <= 0:
+		return "bez minimalnego czasu"
+	case d%(24*time.Hour) == 0:
+		return fmt.Sprintf("%d dobach", int(d.Hours()/24))
+	default:
+		return fmt.Sprintf("%d h", int(d.Hours()))
+	}
 }
