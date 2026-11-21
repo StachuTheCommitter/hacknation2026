@@ -1,0 +1,121 @@
+id: panel-phpmyadmin
+name: phpMyAdmin
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 30
+confidence: 0.9
+technology: {name: phpMyAdmin, category: admin_panel}
+match:
+  any:
+    - {part: title, op: icontains, value: phpmyadmin}
+    - {part: cookie_name, op: equals, value: phpMyAdmin}
+    - {part: cookie_name, op: equals, value: pma_lang}
+export: {defectdojo: true, title: "phpMyAdmin panel exposed"}
+---
+id: panel-phpmyadmin-path
+name: phpMyAdmin pod /phpmyadmin/
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 30
+confidence: 0.9
+request: {method: GET, path: /phpmyadmin/}
+match:
+  all:
+    - {part: soft404, op: equals, value: "false"}
+    - {part: body, op: icontains, value: phpmyadmin}
+export: {defectdojo: true, title: "phpMyAdmin panel exposed"}
+---
+id: panel-grafana
+name: Grafana
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 25
+confidence: 0.9
+technology:
+  name: Grafana
+  category: admin_panel
+  version_from: {part: body, regex: '"version":"([0-9.]+)"'}
+match:
+  any:
+    - {part: title, op: equals, value: Grafana}
+    - {part: cookie_name, op: equals, value: grafana_session}
+    - {part: body, op: contains, value: 'grafanaBootData'}
+export: {defectdojo: true, title: "Grafana login panel exposed"}
+---
+id: panel-jenkins
+name: Jenkins
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 30
+confidence: 0.9
+technology:
+  name: Jenkins
+  category: admin_panel
+  version_from: {part: header, name: X-Jenkins, regex: '([0-9.]+)'}
+match:
+  any:
+    - {part: header, name: X-Jenkins, op: exists}
+    - {part: header, name: X-Hudson, op: exists}
+    - {part: favicon_mmh3, op: equals, value: "81586312"}
+export: {defectdojo: true, title: "Jenkins instance exposed"}
+---
+id: panel-kibana
+name: Kibana
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 25
+confidence: 0.85
+technology: {name: Kibana, category: admin_panel}
+match:
+  any:
+    - {part: header, name: Kbn-Name, op: exists}
+    - {part: title, op: equals, value: Kibana}
+export: {defectdojo: true, title: "Kibana exposed"}
+---
+id: panel-webmin
+name: Webmin
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 30
+confidence: 0.85
+technology: {name: Webmin, category: admin_panel}
+match:
+  any:
+    - {part: header, name: Server, op: icontains, value: MiniServ}
+    - {part: title, op: icontains, value: 'Login to Webmin'}
+export: {defectdojo: true, title: "Webmin panel exposed"}
+---
+id: panel-generic-login
+name: Formularz logowania (ogólny)
+description: Strona z polem hasła – możliwy panel administracyjny.
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 10
+confidence: 0.5
+match:
+  all:
+    - {part: body, op: regex, value: '(?i)<input[^>]+type=["'']?password'}
+---
+id: panel-admin-path
+name: Panel pod /admin
+version: 1
+scope: http
+categories: [admin_panel]
+priority: 20
+confidence: 0.6
+request: {method: GET, path: /admin}
+match:
+  all:
+    - {part: status, op: in, value: [200, 401, 403]}
+    - {part: soft404, op: equals, value: "false"}
+    - any:
+        - {part: body, op: regex, value: '(?i)type=["'']?password'}
+        - {part: title, op: regex, value: '(?i)admin|login|logowanie|panel'}
+        - {part: header, name: WWW-Authenticate, op: exists}

@@ -1,0 +1,98 @@
+id: iot-goahead
+name: Urządzenie embedded (GoAhead)
+description: Serwer GoAhead-Webs – typowy dla kamer IP i rejestratorów.
+version: 1
+scope: http
+categories: [iot]
+priority: 20
+confidence: 0.8
+technology: {name: GoAhead, category: iot}
+match:
+  any:
+    - {part: header, name: Server, op: icontains, value: GoAhead}
+---
+id: iot-ip-camera
+name: Kamera IP
+version: 1
+scope: http
+categories: [iot]
+priority: 25
+confidence: 0.75
+match:
+  any:
+    - {part: title, op: regex, value: '(?i)network camera|ip camera|web ?viewer|dvr|nvr'}
+    - {part: header, name: Server, op: icontains, value: Hikvision}
+    - {part: header, name: Server, op: icontains, value: 'App-webs'}
+    - {part: favicon_mmh3, op: equals, value: "999357577"}
+export: {defectdojo: true, title: "IP camera web interface exposed"}
+---
+id: iot-hp-printer
+name: Drukarka HP
+version: 1
+scope: http
+categories: [iot]
+priority: 15
+confidence: 0.85
+technology:
+  name: HP Printer
+  category: iot
+  version_from: {part: body, regex: '(?i)firmware[^0-9]{0,40}([0-9][0-9A-Z.]+)'}
+match:
+  any:
+    - {part: title, op: regex, value: '(?i)hp (laserjet|officejet|color laserjet|designjet)'}
+    - {part: header, name: Server, op: icontains, value: 'HP HTTP Server'}
+---
+id: iot-mikrotik
+name: MikroTik RouterOS
+version: 1
+scope: http
+categories: [iot, admin_panel]
+priority: 30
+confidence: 0.85
+technology: {name: MikroTik RouterOS, category: iot}
+match:
+  any:
+    - {part: title, op: icontains, value: RouterOS}
+    - {part: body, op: contains, value: 'mikrotik'}
+export: {defectdojo: true, title: "MikroTik RouterOS management interface exposed"}
+---
+id: iot-telnet-busybox
+name: Telnet na urządzeniu embedded (BusyBox)
+version: 1
+scope: service
+categories: [iot]
+priority: 25
+confidence: 0.8
+severity: low
+match:
+  all:
+    - {part: port, op: in, value: [23, 2323]}
+    - any:
+        - {part: banner, op: icontains, value: busybox}
+        - {part: banner, op: icontains, value: login}
+        - {part: service, op: equals, value: telnet}
+export: {defectdojo: true, title: "Telnet service on embedded device"}
+---
+id: iot-rtsp
+name: Strumień RTSP
+version: 1
+scope: service
+categories: [iot]
+priority: 15
+confidence: 0.8
+match:
+  any:
+    - {part: service, op: equals, value: rtsp}
+    - {part: banner, op: starts_with, value: RTSP/1.0}
+---
+id: iot-printer-services
+name: Usługi drukarki (IPP / JetDirect)
+version: 1
+scope: service
+categories: [iot]
+priority: 5
+confidence: 0.7
+match:
+  any:
+    - {part: service, op: in, value: [ipp, jetdirect]}
+    - {part: devicetype, op: icontains, value: printer}

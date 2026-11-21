@@ -1,0 +1,93 @@
+id: cms-wordpress
+name: WordPress
+description: Strona zbudowana na WordPress (generator, ścieżki wp-content, cookies).
+version: 1
+scope: http
+categories: [cms]
+priority: 10
+confidence: 0.85
+technology:
+  name: WordPress
+  category: cms
+  version_from: {part: body, regex: '<meta name="generator" content="WordPress ([0-9.]+)'}
+match:
+  any:
+    - {part: body, op: regex, value: '<meta name="generator" content="WordPress'}
+    - {part: body, op: contains, value: '/wp-content/'}
+    - {part: header, name: Link, op: contains, value: 'api.w.org'}
+---
+id: cms-wordpress-login
+name: WordPress – panel logowania
+description: Publicznie dostępny formularz logowania wp-login.php.
+version: 1
+scope: http
+categories: [cms, admin_panel]
+priority: 25
+confidence: 0.9
+request: {method: GET, path: /wp-login.php}
+match:
+  all:
+    - {part: status, op: in, value: [200]}
+    - {part: soft404, op: equals, value: "false"}
+    - any:
+        - {part: body, op: contains, value: 'id="wp-submit"'}
+        - {part: cookie_name, op: equals, value: wordpress_test_cookie}
+export: {defectdojo: true, title: "WordPress login panel exposed"}
+---
+id: cms-drupal
+name: Drupal
+version: 1
+scope: http
+categories: [cms]
+priority: 10
+confidence: 0.85
+technology:
+  name: Drupal
+  category: cms
+  version_from: {part: header, name: X-Generator, regex: 'Drupal ([0-9.]+)'}
+match:
+  any:
+    - {part: header, name: X-Generator, op: icontains, value: drupal}
+    - {part: header, name: X-Drupal-Cache, op: exists}
+    - {part: body, op: regex, value: 'Drupal\.settings|data-drupal-'}
+---
+id: cms-joomla
+name: Joomla
+version: 1
+scope: http
+categories: [cms]
+priority: 10
+confidence: 0.8
+technology: {name: Joomla, category: cms}
+match:
+  any:
+    - {part: body, op: regex, value: '<meta name="generator" content="Joomla'}
+    - {part: body, op: contains, value: '/media/jui/'}
+---
+id: cms-moodle
+name: Moodle
+description: Platforma e-learningowa Moodle (cookie MoodleSession).
+version: 1
+scope: http
+categories: [cms]
+priority: 10
+confidence: 0.85
+technology: {name: Moodle, category: cms}
+match:
+  any:
+    - {part: cookie_name, op: equals, value: MoodleSession}
+    - {part: body, op: contains, value: 'moodle-core'}
+    - {part: body, op: regex, value: 'M\.cfg\s*='}
+---
+id: cms-typo3
+name: TYPO3
+version: 1
+scope: http
+categories: [cms]
+priority: 10
+confidence: 0.8
+technology: {name: TYPO3, category: cms}
+match:
+  any:
+    - {part: body, op: regex, value: '<meta name="generator" content="TYPO3'}
+    - {part: body, op: contains, value: '/typo3conf/'}

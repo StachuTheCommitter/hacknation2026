@@ -1,0 +1,84 @@
+id: srv-tomcat
+name: Apache Tomcat
+version: 1
+scope: http
+categories: [app_server]
+priority: 5
+confidence: 0.8
+technology:
+  name: Apache Tomcat
+  category: app_server
+  version_from: {part: title, regex: 'Apache Tomcat/([0-9.]+)'}
+match:
+  any:
+    - {part: title, op: icontains, value: apache tomcat}
+    - {part: body, op: contains, value: 'Apache Tomcat'}
+---
+id: srv-tomcat-manager
+name: Tomcat Manager
+version: 1
+scope: http
+categories: [app_server, admin_panel]
+priority: 30
+confidence: 0.9
+request: {method: GET, path: /manager/html}
+match:
+  all:
+    - {part: status, op: in, value: [401, 403, 200]}
+    - {part: soft404, op: equals, value: "false"}
+    - any:
+        - {part: header, name: WWW-Authenticate, op: icontains, value: 'Tomcat Manager'}
+        - {part: body, op: contains, value: 'Tomcat Web Application Manager'}
+        - {part: body, op: contains, value: 'manager-gui'}
+export: {defectdojo: true, title: "Tomcat Manager interface exposed"}
+---
+id: srv-default-apache
+name: Domyślna strona Apache
+version: 1
+scope: http
+categories: [default_page]
+priority: 10
+confidence: 0.9
+match:
+  any:
+    - {part: title, op: icontains, value: 'Apache2 Debian Default Page'}
+    - {part: title, op: icontains, value: 'Apache2 Ubuntu Default Page'}
+    - {part: body, op: contains, value: '<h1>It works!</h1>'}
+---
+id: srv-default-nginx
+name: Domyślna strona nginx
+version: 1
+scope: http
+categories: [default_page]
+priority: 10
+confidence: 0.9
+match:
+  any:
+    - {part: title, op: equals, value: 'Welcome to nginx!'}
+---
+id: srv-default-iis
+name: Domyślna strona IIS
+version: 1
+scope: http
+categories: [default_page]
+priority: 10
+confidence: 0.9
+match:
+  any:
+    - {part: title, op: icontains, value: 'IIS Windows Server'}
+    - {part: title, op: icontains, value: 'Internet Information Services'}
+---
+id: srv-server-status
+name: Apache server-status publicznie
+version: 1
+scope: http
+categories: [debug_exposure]
+priority: 30
+severity: low
+confidence: 0.9
+request: {method: GET, path: /server-status}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: body, op: contains, value: 'Apache Server Status'}
+export: {defectdojo: true, title: "Apache server-status page exposed"}

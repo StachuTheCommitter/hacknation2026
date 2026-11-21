@@ -1,0 +1,90 @@
+id: eol-php
+name: PHP bez wsparcia (< 8.1)
+version: 1
+scope: http
+categories: [eol_software]
+priority: 25
+severity: low
+confidence: 0.9
+match:
+  any:
+    - {part: tech_version, name: PHP, op: version_lt, value: "8.1"}
+export: {defectdojo: true, title: "End-of-life PHP version"}
+---
+id: eol-apache-22
+name: Apache httpd 2.2 i starsze
+version: 1
+scope: service
+categories: [eol_software]
+priority: 25
+severity: low
+confidence: 0.85
+match:
+  all:
+    - {part: product, op: icontains, value: apache httpd}
+    - {part: version, op: version_lt, value: "2.4"}
+export: {defectdojo: true, title: "End-of-life Apache httpd"}
+---
+id: eol-openssh
+name: OpenSSH starszy niż 7.4
+version: 1
+scope: service
+categories: [eol_software]
+priority: 20
+severity: low
+confidence: 0.85
+match:
+  all:
+    - {part: product, op: icontains, value: openssh}
+    - {part: version, op: version_lt, value: "7.4"}
+export: {defectdojo: true, title: "Outdated OpenSSH"}
+---
+id: eol-wordpress
+name: WordPress starszy niż 6.0
+version: 1
+scope: http
+categories: [eol_software]
+priority: 20
+severity: low
+confidence: 0.8
+match:
+  any:
+    - {part: tech_version, name: WordPress, op: version_lt, value: "6.0"}
+export: {defectdojo: true, title: "Outdated WordPress"}
+---
+id: eol-iis
+name: IIS 7.5 i starsze
+version: 1
+scope: http
+categories: [eol_software]
+priority: 25
+severity: low
+confidence: 0.85
+match:
+  any:
+    - {part: header, name: Server, op: regex, value: 'Microsoft-IIS/(5|6|7)\.'}
+export: {defectdojo: true, title: "End-of-life Microsoft IIS"}
+---
+id: svc-exposed-database
+name: Baza danych dostępna sieciowo
+version: 1
+scope: service
+categories: [exposed_service]
+priority: 25
+severity: low
+confidence: 0.85
+match:
+  any:
+    - {part: service, op: in, value: [mysql, postgresql, ms-sql-s, mongodb, redis, oracle-tns, memcached, elasticsearch]}
+export: {defectdojo: true, title: "Database service reachable over the network"}
+---
+id: svc-cleartext-protocol
+name: Protokół nieszyfrowany (FTP/Telnet)
+version: 1
+scope: service
+categories: [weak_config]
+priority: 15
+confidence: 0.85
+match:
+  any:
+    - {part: service, op: in, value: [ftp, telnet]}

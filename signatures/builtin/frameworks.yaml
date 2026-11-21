@@ -1,0 +1,98 @@
+id: fw-laravel
+name: Laravel
+version: 1
+scope: http
+categories: [framework]
+priority: 5
+confidence: 0.75
+technology: {name: Laravel, category: framework}
+match:
+  any:
+    - {part: cookie_name, op: equals, value: laravel_session}
+    - {part: cookie_name, op: equals, value: XSRF-TOKEN}
+---
+id: fw-django
+name: Django
+version: 1
+scope: http
+categories: [framework]
+priority: 5
+confidence: 0.7
+technology: {name: Django, category: framework}
+match:
+  any:
+    - {part: cookie_name, op: equals, value: csrftoken}
+    - {part: body, op: contains, value: 'csrfmiddlewaretoken'}
+---
+id: fw-spring-boot
+name: Spring Boot
+version: 1
+scope: http
+categories: [framework]
+priority: 5
+confidence: 0.8
+technology: {name: Spring Boot, category: framework}
+match:
+  any:
+    - {part: body, op: contains, value: 'Whitelabel Error Page'}
+    - {part: favicon_mmh3, op: equals, value: "116323821"}
+---
+id: fw-spring-actuator
+name: Spring Boot Actuator – endpoint publiczny
+version: 1
+scope: http
+categories: [framework, debug_exposure]
+priority: 25
+confidence: 0.85
+severity: low
+request: {method: GET, path: /actuator/health}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: soft404, op: equals, value: "false"}
+    - {part: body, op: regex, value: '"status"\s*:\s*"(UP|DOWN)"'}
+export: {defectdojo: true, title: "Spring Boot Actuator endpoint exposed"}
+---
+id: fw-express
+name: Express (Node.js)
+version: 1
+scope: http
+categories: [framework]
+priority: 3
+confidence: 0.8
+technology: {name: Express, category: framework}
+match:
+  any:
+    - {part: header, name: X-Powered-By, op: equals, value: Express}
+---
+id: fw-aspnet
+name: ASP.NET
+version: 1
+scope: http
+categories: [framework]
+priority: 3
+confidence: 0.8
+technology:
+  name: ASP.NET
+  category: framework
+  version_from: {part: header, name: X-AspNet-Version, regex: '([0-9.]+)'}
+match:
+  any:
+    - {part: header, name: X-AspNet-Version, op: exists}
+    - {part: cookie_name, op: equals, value: ASP.NET_SessionId}
+    - {part: header, name: X-Powered-By, op: equals, value: ASP.NET}
+---
+id: fw-php-version
+name: PHP (wersja w nagłówku)
+version: 1
+scope: http
+categories: [framework]
+priority: 3
+confidence: 0.85
+technology:
+  name: PHP
+  category: language
+  version_from: {part: header, name: X-Powered-By, regex: 'PHP/([0-9.]+)'}
+match:
+  any:
+    - {part: header, name: X-Powered-By, op: starts_with, value: PHP/}

@@ -1,0 +1,108 @@
+id: exposure-directory-listing
+name: Listing katalogu
+version: 1
+scope: http
+categories: [debug_exposure]
+priority: 20
+confidence: 0.9
+match:
+  any:
+    - {part: title, op: starts_with, value: 'Index of /'}
+    - {part: title, op: starts_with, value: 'Directory listing for'}
+export: {defectdojo: true, title: "Directory listing enabled"}
+---
+id: exposure-git
+name: Repozytorium .git dostępne publicznie
+description: GET /.git/HEAD zwraca referencję gałęzi. Treść nie jest zapisywana.
+version: 1
+scope: http
+categories: [debug_exposure]
+priority: 45
+severity: medium
+confidence: 0.95
+request: {method: GET, path: /.git/HEAD}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: pattern_match, op: equals, value: "true"}
+export: {defectdojo: true, title: "Git repository metadata exposed"}
+---
+id: exposure-env
+name: Plik .env dostępny publicznie
+description: GET /.env zwraca zmienne środowiskowe. Treść nie jest zapisywana.
+version: 1
+scope: http
+categories: [debug_exposure]
+priority: 50
+severity: high
+confidence: 0.9
+request: {method: GET, path: /.env}
+match:
+  all:
+    - {part: status, op: equals, value: "200"}
+    - {part: pattern_match, op: equals, value: "true"}
+export: {defectdojo: true, title: "Environment file (.env) exposed"}
+---
+id: exposure-swagger
+name: Dokumentacja API (Swagger UI)
+version: 1
+scope: http
+categories: [debug_exposure]
+priority: 15
+confidence: 0.85
+request: {method: GET, path: /swagger-ui/}
+match:
+  all:
+    - {part: soft404, op: equals, value: "false"}
+    - {part: body, op: icontains, value: swagger-ui}
+---
+id: exposure-cleartext-login
+name: Logowanie przez nieszyfrowany HTTP
+version: 1
+scope: http
+categories: [cleartext_login]
+priority: 25
+severity: low
+confidence: 0.85
+match:
+  all:
+    - {part: scheme, op: equals, value: http}
+    - {part: cleartext_login, op: equals, value: "true"}
+export: {defectdojo: true, title: "Login form served over cleartext HTTP"}
+---
+id: header-version-disclosure
+name: Ujawnienie wersji w nagłówkach
+version: 1
+scope: http
+categories: [info_disclosure]
+priority: 5
+confidence: 0.9
+match:
+  any:
+    - {part: header, name: Server, op: regex, value: '/[0-9]+\.[0-9]+'}
+    - {part: header, name: X-Powered-By, op: regex, value: '[0-9]+\.[0-9]+'}
+    - {part: header, name: X-AspNet-Version, op: exists}
+---
+id: header-missing-hsts
+name: Brak HSTS na HTTPS
+version: 1
+scope: http
+categories: [weak_config]
+priority: 3
+confidence: 0.95
+match:
+  all:
+    - {part: scheme, op: equals, value: https}
+    - {part: status, op: between, value: [200, 399]}
+    - {part: header, name: Strict-Transport-Security, op: not_exists}
+---
+id: cookie-session-insecure
+name: Cookie sesyjne bez flag Secure/HttpOnly
+version: 1
+scope: http
+categories: [weak_config]
+priority: 10
+confidence: 0.9
+match:
+  any:
+    - {part: cookie_insecure_session, op: exists}

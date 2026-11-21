@@ -1,0 +1,59 @@
+id: tls-expired
+name: Certyfikat TLS wygasły
+version: 1
+scope: http
+categories: [tls_issue]
+priority: 15
+severity: low
+confidence: 1.0
+match:
+  all:
+    - {part: scheme, op: equals, value: https}
+    - {part: tls_expired, op: equals, value: "true"}
+export: {defectdojo: true, title: "Expired TLS certificate"}
+---
+id: tls-expiring
+name: Certyfikat TLS wygasa w ciągu 30 dni
+version: 1
+scope: http
+categories: [tls_issue]
+priority: 8
+confidence: 1.0
+match:
+  all:
+    - {part: tls_expired, op: equals, value: "false"}
+    - {part: tls_days_left, op: between, value: [0, 30]}
+---
+id: tls-self-signed
+name: Certyfikat self-signed
+version: 1
+scope: http
+categories: [tls_issue]
+priority: 8
+confidence: 1.0
+match:
+  all:
+    - {part: scheme, op: equals, value: https}
+    - {part: tls_self_signed, op: equals, value: "true"}
+---
+id: tls-old-protocol
+name: Przestarzały protokół TLS
+version: 1
+scope: http
+categories: [tls_issue]
+priority: 10
+confidence: 1.0
+match:
+  any:
+    - {part: tls_version, op: in, value: [TLS1.0, TLS1.1, SSLv3]}
+---
+id: tls-service-expired
+name: Certyfikat wygasły (usługa nie-HTTP)
+version: 1
+scope: service
+categories: [tls_issue]
+priority: 10
+confidence: 1.0
+match:
+  all:
+    - {part: tls_expired, op: equals, value: "true"}

@@ -1,0 +1,57 @@
+id: staging-hostname
+name: Środowisko testowe (nazwa hosta)
+version: 1
+scope: http
+categories: [staging]
+priority: 20
+confidence: 0.7
+match:
+  any:
+    - {part: vhost, op: regex, value: '(?i)(^|[.-])(dev|test|testing|stage|staging|uat|preprod|qa|demo)([.-]|$)'}
+    - {part: tls_subject_cn, op: regex, value: '(?i)(^|[.-])(dev|test|stage|staging|uat|preprod|qa)([.-]|$)'}
+    - {part: tls_san, op: regex, value: '(?i)(^|[.-])(dev|test|stage|staging|uat|preprod|qa)([.-]|$)'}
+export: {defectdojo: true, title: "Staging / test environment exposed"}
+---
+id: staging-title-header
+name: Środowisko testowe (tytuł lub nagłówek)
+version: 1
+scope: http
+categories: [staging]
+priority: 20
+confidence: 0.8
+match:
+  any:
+    - {part: title, op: regex, value: '(?i)\b(staging|stage|test environment|testowe|development|dev server|uat|preprod)\b'}
+    - {part: header, name: X-Environment, op: regex, value: '(?i)staging|dev|test|uat'}
+    - {part: header, name: X-Env, op: regex, value: '(?i)staging|dev|test|uat'}
+export: {defectdojo: true, title: "Staging / test environment exposed"}
+---
+id: debug-symfony-profiler
+name: Symfony profiler / debug token
+version: 1
+scope: http
+categories: [debug_exposure, framework]
+priority: 35
+severity: low
+confidence: 0.9
+technology: {name: Symfony, category: framework}
+match:
+  any:
+    - {part: header, name: X-Debug-Token, op: exists}
+    - {part: header, name: X-Debug-Token-Link, op: exists}
+export: {defectdojo: true, title: "Debug mode enabled (Symfony profiler)"}
+---
+id: debug-framework-page
+name: Strona debug frameworka
+version: 1
+scope: http
+categories: [debug_exposure]
+priority: 35
+severity: low
+confidence: 0.85
+match:
+  any:
+    - {part: body, op: contains, value: "You're seeing this error because you have <code>DEBUG = True</code>"}
+    - {part: body, op: contains, value: 'Whoops! There was an error.'}
+    - {part: body, op: contains, value: '<title>phpinfo()</title>'}
+export: {defectdojo: true, title: "Debug page exposed"}
