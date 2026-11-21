@@ -115,7 +115,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
 @media (max-width: 1100px) { .g-main, .g2, .g3 { grid-template-columns: 1fr; } }
 
 /* ---------- KPI ---------- */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 .kpi { padding: 12px 14px; border-right: 1px solid var(--line); }
 .kpi:last-child { border-right: 0; }
 .kpi .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }

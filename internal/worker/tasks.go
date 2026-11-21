@@ -489,6 +489,20 @@ func (w *Worker) probe(ctx context.Context, l *model.Lease, scope netx.Scope) (*
 	go func() {
 		defer phase.Done()
 		t0 := time.Now()
+		// tryb szybki: dla znanych portów tylko lekki odczyt banera (wykrywanie podmiany usługi)
+		if l.Mode == "differential" {
+			for _, hw := range work {
+				for _, pp := range hw.h.Ports {
+					if pp.Known && pp.Proto == "tcp" {
+						if b := grabBanner(ctx, hw.h.IP, pp.Port); b != "" {
+							if s := hw.services[fmt.Sprintf("tcp/%d", pp.Port)]; s != nil {
+								s.Banner = b
+							}
+						}
+					}
+				}
+			}
+		}
 		if w.tools["nmap"] != "" && len(groups) > 0 {
 			sem := make(chan struct{}, max(w.cfg.MaxNmap, 1))
 			var mu sync.Mutex
@@ -695,4 +709,19 @@ func sortedServices(m map[string]*obs.Service) []*obs.Service {
 		return out[i].Port < out[j].Port
 	})
 	return out
+}
+
+// grabBanner – odczyt pierwszej linii, którą usługa wysyła po połączeniu (SSH, FTP, SMTP…); HTTP milczy.
+func grabBanner(ctx context.Context, ip string, port int) string {
+	d := net.Dialer{Timeout: 3 * time.Second}
+	c, err := d.DialContext(ctx, "tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
+	if err != nil {
+		return ""
+	}
+	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 256)
+	n, _ := c.Read(buf)
+	line := strings.SplitN(string(buf[:n]), "\n", 2)[0]
+	return strings.TrimSpace(line)
 }

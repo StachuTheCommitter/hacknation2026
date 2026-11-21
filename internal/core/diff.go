@@ -107,6 +107,13 @@ func (a *App) DiffRuns(ctx context.Context, idA, idB string) (*RunDiff, error) {
 		}
 		x, okA := sa[k]
 		y, okB := sb[k]
+		if et := x.etype + y.etype; strings.Contains(et, "http") {
+			// endpoint WWW porównujemy tylko, gdy usługa była sondowana w obu przebiegach
+			sk := svcKeyOf(k)
+			if sa[sk].fp == "" || sb[sk].fp == "" {
+				continue
+			}
+		}
 		upA, upB := okA && x.up, okB && y.up
 		etype := x.etype
 		if etype == "" {

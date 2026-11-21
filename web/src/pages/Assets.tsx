@@ -113,7 +113,7 @@ function Web({ q, offset, setOffset }: { q: string; offset: number; setOffset: (
           <td className="mono small" style={{ maxWidth: 260 }}><div className="ellipsis">{w.url}</div>{w.server && <div className="sub">{w.server}</div>}</td>
           <td className="num"><span className={w.status >= 500 ? 'conflict' : w.status >= 400 ? 'muted' : ''}>{w.status}</span></td>
           <td className="ellipsis" style={{ maxWidth: 240 }} title={w.title}>{w.overrides?.title ?? w.title}</td>
-          <td className="small">{techs.slice(0, 4).map(t => <span key={t.name} title={`pewność ${Math.round(t.confidence * 100)}%`}>{t.name}{t.version ? ' ' + t.version : ''}{' · '}</span>)}</td>
+          <td className="small">{techs.slice(0, 4).map((t, i) => <span key={t.name} title={`pewność ${Math.round(t.confidence * 100)}%`}>{i > 0 && ' · '}{t.name}{t.version ? ' ' + t.version : ''}</span>)}</td>
           <td><div className="row tight">{cats.filter(c => c.confidence >= 0.45 && !['info_disclosure', 'weak_config'].includes(c.category)).map(c => <Cat key={c.category} c={c.category} conf={c.confidence} />)}</div></td>
           <td className="small nowrap">{w.tls ? <TLSCell t={w.tls} /> : <span className="faint">—</span>}</td>
         </tr>

@@ -41,7 +41,9 @@ func TestRBACMatrix(t *testing.T) {
 			roles[d.Name][p] = true
 		}
 	}
-	allowed := func(role, perm string) bool { return perm == rbac.Public || perm == rbac.Authenticated || roles[role][perm] }
+	allowed := func(role, perm string) bool {
+		return perm == rbac.Public || perm == rbac.Authenticated || roles[role][perm]
+	}
 	// POST-y tylko obliczeniowe (bez zmiany stanu): walidacja, estymacja, test sygnatury, ocena trafności
 	readOnly := map[string]bool{"/api/v1/targets/validate": true, "/api/v1/estimate": true, "/api/v1/eval": true,
 		"/api/v1/signatures/validate": true, "/api/v1/signatures/test": true}

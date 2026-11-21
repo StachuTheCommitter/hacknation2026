@@ -448,10 +448,24 @@ func (a *App) upsertService(ctx context.Context, ic *ingestCtx, hostID string, o
 			func() int { return a.entityScore(ctx, "services", id) })
 	}
 	light := s.Light && probed != nil
+	bannerDrift := false
 	var stable map[string]any
 	var fp string
 	if light {
 		stable, fp = a.prevStable(ctx, key, ic.runID)
+		// podmiana usługi poza HTTP: inny baner niż przy ostatnim pełnym pomiarze → pełny pomiar hosta
+		if s.Banner != "" {
+			var ct []byte
+			a.DB.QueryRow(ctx, `select raw_enc from services where id=$1`, id).Scan(&ct)
+			if pt, err := a.Keys.Decrypt("services.raw_enc:"+id, ct); err == nil && len(pt) > 0 {
+				var prev serviceRaw
+				json.Unmarshal(pt, &prev)
+				old := strings.TrimSpace(strings.SplitN(prev.Banner, "\n", 2)[0])
+				if old != "" && old != s.Banner {
+					bannerDrift = true
+				}
+			}
+		}
 	} else {
 		raw := serviceRaw{Banner: s.Banner, Scripts: s.Scripts, TLS: s.TLS, CPE: s.CPE}
 		rawEnc, _ := a.Keys.Encrypt("services.raw_enc:"+id, jsonb(raw))
@@ -492,7 +506,7 @@ func (a *App) upsertService(ctx context.Context, ic *ingestCtx, hostID string, o
 		changedHTTP = changedHTTP || ch
 	}
 	a.analyzeService(ctx, ic, hostID, id, ip, s, hostnames, light)
-	return id, changedHTTP, nil
+	return id, changedHTTP || bannerDrift, nil
 }
 
 func fieldList(d []FieldDiff) string {

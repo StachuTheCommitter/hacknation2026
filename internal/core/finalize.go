@@ -253,6 +253,7 @@ func (a *App) finalizeRun(ctx context.Context, r *Run) error {
 	cov := a.runCoverage(ctx, r.ID)
 	seen := a.seenKeys(ctx, r.ID)
 	retried := a.retryKeys(ctx, r.ID)
+	probed := a.probedServices(ctx, r.ID)
 	ic := a.newIngestCtx(ctx, r, "", "", r.Source)
 	loc := time.UTC
 	if r.GroupID != "" {
@@ -300,6 +301,10 @@ func (a *App) finalizeRun(ctx context.Context, r *Run) error {
 		up := seen[e.key]
 		if e.etype != "host" && !hostUp[e.ip] {
 			up = false
+		}
+		// endpoint WWW liczy się jako brak tylko, gdy jego usługa była w tym przebiegu sondowana
+		if e.etype == "http" && !up && hostUp[e.ip] && !probed[svcKeyOf(e.key)] {
+			continue
 		}
 		retry := retried[e.key]
 		a.DB.Exec(ctx, `insert into availability_history(entity_type,entity_id,run_id,at,up,retry,bucket_tod,weekend) values($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -555,4 +560,26 @@ func (a *App) missesSpanBuckets(ctx context.Context, entityID string, k int, per
 	var distinctMiss int
 	a.DB.QueryRow(ctx, `select count(distinct bucket_tod) from (select bucket_tod, up from availability_history where entity_id=$1 order by at desc limit $2) x where not up`, entityID, k).Scan(&distinctMiss)
 	return distinctMiss >= 2 || k <= 1
+}
+
+// probedServices – usługi z pełnym pomiarem (nmap/HTTP) w przebiegu.
+func (a *App) probedServices(ctx context.Context, runID string) map[string]bool {
+	m := map[string]bool{}
+	rows, _ := a.DB.Query(ctx, `select distinct entity_key from observations where run_id=$1 and entity_type='service' and stable_fp<>''`, runID)
+	for rows.Next() {
+		var k string
+		rows.Scan(&k)
+		m[k] = true
+	}
+	rows.Close()
+	return m
+}
+
+// svcKeyOf – klucz usługi dla klucza endpointu (ip/tcp/port/schemat/vhost → ip/tcp/port).
+func svcKeyOf(k string) string {
+	p := strings.Split(k, "/")
+	if len(p) >= 3 {
+		return strings.Join(p[:3], "/")
+	}
+	return k
 }

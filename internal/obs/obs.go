@@ -377,8 +377,9 @@ func HostStable(h Host, openPorts []string) map[string]any {
 	}
 	sort.Strings(names)
 	sort.Strings(openPorts)
+	_ = names // nazwy hostów śledzone osobno (host_hostnames) – źródła PTR/DNS/SAN różnią się między pomiarami
 	return map[string]any{
-		"up": h.IsUp(), "open_ports": openPorts, "hostnames": names, "ssh_hostkey": h.SSHHostkeyFP,
+		"up": h.IsUp(), "open_ports": openPorts, "ssh_hostkey": h.SSHHostkeyFP,
 	}
 }
 
