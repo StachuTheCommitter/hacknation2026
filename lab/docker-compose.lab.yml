@@ -1,0 +1,183 @@
+# Laboratorium ASI – sieć 10.77.0.0/16 (65 536 adresów) z usługami rozrzuconymi po różnych /24.
+# Ścieżki są względne wobec katalogu głównego repozytorium (pierwszy plik compose).
+# Użycie: make lab   (albo docker compose -f docker-compose.yml -f lab/docker-compose.lab.yml up -d --build)
+# Zmiany między przebiegami: lab/scenario.sh step2 | step3 | reset
+
+x-labweb: &labweb
+  image: asi-labweb:local
+  build: {context: ., dockerfile: deploy/Dockerfile, target: labweb}
+  volumes: [./lab/profiles:/profiles:ro]
+  restart: unless-stopped
+
+services:
+  # ---- system: tryb demo + podpięcie workerów do sieci laboratorium ----
+  server:
+    environment:
+      ASI_SEED_DEMO_USERS: "true"
+      ASI_SEED_DEMO_LAB: "true"
+      ASI_DEMO_MODE: "true"
+      ASI_GLOBAL_MAX_PPS: "6000"
+  worker:
+    networks: [default, asi-lab]
+    dns: [10.77.0.53]
+    depends_on: [server, dns]
+
+  # ---- infrastruktura ----
+  dns:
+    build: ./lab/images/dns
+    image: asi-lab-dns:local
+    networks: {asi-lab: {ipv4_address: 10.77.0.53}}
+    restart: unless-stopped
+
+  # ---- 10.77.1.0/24: CMS ----
+  wordpress:
+    image: wordpress:6.4-apache
+    environment: {WORDPRESS_DB_HOST: 10.77.1.11, WORDPRESS_DB_USER: wp, WORDPRESS_DB_PASSWORD: wp-lab-pass, WORDPRESS_DB_NAME: wp}
+    volumes: [wp:/var/www/html]
+    networks: {asi-lab: {ipv4_address: 10.77.1.10}}
+    depends_on: [mariadb]
+    restart: unless-stopped
+  wp-init:
+    image: wordpress:cli-2.10
+    user: "33:33"
+    volumes: [wp:/var/www/html]
+    environment: {WORDPRESS_DB_HOST: 10.77.1.11, WORDPRESS_DB_USER: wp, WORDPRESS_DB_PASSWORD: wp-lab-pass, WORDPRESS_DB_NAME: wp}
+    networks: [asi-lab]
+    depends_on: [wordpress]
+    command: >
+      sh -c 'for i in $$(seq 1 40); do wp core is-installed && exit 0;
+      wp core install --url=http://blog.lab.local --title="Blog Wydziału" --admin_user=redakcja --admin_password=lab-$$RANDOM-pass --admin_email=blog@lab.local --skip-email && exit 0; sleep 3; done'
+    restart: "no"
+  mariadb:
+    image: mariadb:10.11
+    environment: {MARIADB_ROOT_PASSWORD: root-lab-pass, MARIADB_DATABASE: wp, MARIADB_USER: wp, MARIADB_PASSWORD: wp-lab-pass}
+    networks: {asi-lab: {ipv4_address: 10.77.1.11}}
+    restart: unless-stopped
+  drupal:
+    <<: *labweb
+    command: ["/profiles/drupal.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.1.20}}
+  moodle:
+    <<: *labweb
+    command: ["/profiles/moodle.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.1.30}}
+
+  # ---- 10.77.2.0/24: panele administracyjne i serwery aplikacyjne ----
+  grafana:
+    image: grafana/grafana-oss:10.4.2
+    networks: {asi-lab: {ipv4_address: 10.77.2.10}}
+    restart: unless-stopped
+  phpmyadmin:
+    image: phpmyadmin:5.2.1
+    environment: {PMA_HOST: 10.77.1.11}
+    networks: {asi-lab: {ipv4_address: 10.77.2.20}}
+    restart: unless-stopped
+  tomcat:
+    image: tomcat:10.1-jre17
+    command: ["sh", "-c", "cp -rn webapps.dist/* webapps/ && exec catalina.sh run"]
+    networks: {asi-lab: {ipv4_address: 10.77.2.30}}
+    restart: unless-stopped
+  jenkins:
+    <<: *labweb
+    command: ["/profiles/jenkins.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.2.40}}
+
+  # ---- 10.77.3.0/24: WWW – staging, vhosty, SPA, stara aplikacja ----
+  staging:
+    <<: *labweb
+    command: ["/profiles/staging${STAGING_VARIANT:-}.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.3.10}}
+  portal:
+    image: nginx:1.25-alpine
+    volumes: [./lab/nginx/vhosts.conf:/etc/nginx/conf.d/default.conf:ro]
+    networks: {asi-lab: {ipv4_address: 10.77.3.20}}
+    restart: unless-stopped
+  spa:
+    <<: *labweb
+    command: ["/profiles/spa.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.3.30}}
+  oldapp:
+    <<: *labweb
+    command: ["/profiles/oldapp.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.3.40}}
+
+  # ---- 10.77.4.0/24: IoT ----
+  camera:
+    <<: *labweb
+    command: ["/profiles/camera.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.4.10}}
+  printer:
+    <<: *labweb
+    command: ["/profiles/printer.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.4.20}}
+  router:
+    <<: *labweb
+    command: ["/profiles/mikrotik.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.4.30}}
+  printer-31: {<<: *labweb, command: ["/profiles/printer.yaml"], networks: {asi-lab: {ipv4_address: 10.77.4.31}}}
+  printer-32: {<<: *labweb, command: ["/profiles/printer.yaml"], networks: {asi-lab: {ipv4_address: 10.77.4.32}}}
+  printer-33: {<<: *labweb, command: ["/profiles/printer.yaml"], networks: {asi-lab: {ipv4_address: 10.77.4.33}}}
+  printer-34: {<<: *labweb, command: ["/profiles/printer.yaml"], networks: {asi-lab: {ipv4_address: 10.77.4.34}}}
+  printer-35: {<<: *labweb, command: ["/profiles/printer-old.yaml"], networks: {asi-lab: {ipv4_address: 10.77.4.35}}}
+
+  # ---- 10.77.5.0/24: usługi nie-WWW ----
+  sshd:
+    build: {context: ./lab/images/sshd, args: {ALPINE: "${SSH_ALPINE:-3.18}"}}
+    image: asi-lab-sshd:${SSH_ALPINE:-3.18}
+    networks: {asi-lab: {ipv4_address: 10.77.5.10}}
+    restart: unless-stopped
+  ftp:
+    build: ./lab/images/ftp
+    image: asi-lab-ftp:local
+    networks: {asi-lab: {ipv4_address: 10.77.5.20}}
+    restart: unless-stopped
+  redis:
+    image: redis:7.2-alpine
+    network_mode: "service:ftp"     # ten sam adres co FTP (10.77.5.20:6379)
+    command: ["redis-server", "--protected-mode", "no"]
+    restart: unless-stopped
+
+  # ---- 10.77.6.0/24: dostępność ----
+  flapper:
+    <<: *labweb
+    command: ["/profiles/flapper.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.6.10}}
+  quiet:
+    build: ./lab/images/quiet
+    image: asi-lab-quiet:local
+    networks: {asi-lab: {ipv4_address: 10.77.6.20}}
+    restart: unless-stopped
+  dropper:
+    image: asi-lab-quiet:local
+    environment: {DROP: "1"}
+    cap_add: [NET_ADMIN]
+    networks: {asi-lab: {ipv4_address: 10.77.6.30}}
+    depends_on: [quiet]
+    restart: unless-stopped
+
+  # ---- 10.77.7.0/24: host pojawiający się w kroku 2 ----
+  newhost:
+    <<: *labweb
+    command: ["/profiles/kibana.yaml"]
+    networks: {asi-lab: {ipv4_address: 10.77.7.10}}
+    profiles: [step2]
+
+  # ---- 10.77.8.0/24: stacje robocze (wolumen + klastry) ----
+  ws-10: {<<: *labweb, command: ["/profiles/workstation.yaml"], networks: {asi-lab: {ipv4_address: 10.77.8.10}}}
+  ws-11: {<<: *labweb, command: ["/profiles/workstation.yaml"], networks: {asi-lab: {ipv4_address: 10.77.8.11}}}
+  ws-12: {<<: *labweb, command: ["/profiles/workstation.yaml"], networks: {asi-lab: {ipv4_address: 10.77.8.12}}}
+  ws-13: {<<: *labweb, command: ["/profiles/workstation.yaml"], networks: {asi-lab: {ipv4_address: 10.77.8.13}}}
+  ws-14: {<<: *labweb, command: ["/profiles/workstation.yaml"], networks: {asi-lab: {ipv4_address: 10.77.8.14}}}
+  ws-15: {<<: *labweb, command: ["/profiles/workstation.yaml"], networks: {asi-lab: {ipv4_address: 10.77.8.15}}}
+
+volumes:
+  wp:
+
+networks:
+  asi-lab:
+    name: asi-lab
+    ipam:
+      config:
+        - subnet: 10.77.0.0/16
+          ip_range: 10.77.250.0/24
+          gateway: 10.77.0.1

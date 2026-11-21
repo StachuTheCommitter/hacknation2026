@@ -1,0 +1,4 @@
+name: workstation
+tcp:
+  - {port: 445, kind: silent}
+  - {port: 3389, kind: silent}

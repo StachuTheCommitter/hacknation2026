@@ -1,0 +1,8 @@
+name: flapper
+http:
+  - port: 8080
+    site:
+      title: "Czujnik środowiskowy"
+      favicon: sensor
+      headers: {Server: lwIP/2.1.2}
+      body: "<p>Temperatura: 21.4 C</p>"

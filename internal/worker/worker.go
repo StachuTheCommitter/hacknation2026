@@ -135,11 +135,19 @@ func (w *Worker) Run(ctx context.Context) error {
 		case <-time.After(3 * time.Second):
 		}
 	}
+	// sloty: worker wykonuje kilka zadań naraz (limity tempa i równoległości egzekwuje dispatcher)
+	slots := make(chan struct{}, max(w.cfg.Slots, 1))
 	idle := time.Second
 	for ctx.Err() == nil {
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+			return nil
+		}
 		var lease model.Lease
 		code, err := w.call(ctx, "/lease", map[string]any{}, &lease)
 		if err != nil || code == http.StatusNoContent {
+			<-slots
 			if err != nil {
 				slog.Warn("lease", "err", err)
 			}
@@ -153,7 +161,10 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 		idle = time.Second
-		w.execute(ctx, &lease)
+		go func(l model.Lease) {
+			defer func() { <-slots }()
+			w.execute(ctx, &l)
+		}(lease)
 	}
 	return nil
 }

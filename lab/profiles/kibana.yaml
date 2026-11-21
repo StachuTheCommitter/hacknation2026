@@ -1,0 +1,8 @@
+name: kibana
+http:
+  - port: 5601
+    site:
+      title: "Kibana"
+      favicon: kibana
+      headers: {Kbn-Name: kibana, Kbn-Version: "8.11.1"}
+      body: '<div id="kibana-body"></div>'

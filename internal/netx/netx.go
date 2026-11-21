@@ -119,6 +119,9 @@ func ParseTarget(s string) (Target, error) {
 		}
 		return Target{Kind: "ip", Value: a.String(), IPv6: a.String()}, nil
 	}
+	if strings.Trim(s, "0123456789.") == "" {
+		return Target{}, fmt.Errorf("niepoprawny adres IP %q", s)
+	}
 	if domainRe.MatchString(s) && strings.Contains(s, ".") {
 		return Target{Kind: "domain", Value: strings.ToLower(strings.TrimSuffix(s, "."))}, nil
 	}
@@ -462,3 +465,5 @@ func NewPortSet(spec string) PortSet {
 	}
 	return s
 }
+
+func mustPrefix(s string) netip.Prefix { return netip.MustParsePrefix(s) }

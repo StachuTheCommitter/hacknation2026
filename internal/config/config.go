@@ -32,6 +32,7 @@ type Config struct {
 	WorkerToken string
 	WorkerName  string
 	MaxNmap     int
+	Slots       int
 	Vantage     string
 }
 
@@ -80,6 +81,7 @@ func Load() Config {
 		WorkerToken:       env("ASI_WORKER_TOKEN", ""),
 		WorkerName:        env("ASI_WORKER_NAME", ""),
 		MaxNmap:           envInt("ASI_WORKER_MAX_NMAP", 4),
+		Slots:             envInt("ASI_WORKER_SLOTS", 4),
 		Vantage:           env("ASI_WORKER_VANTAGE", ""),
 	}
 	if f := env("ASI_MASTER_KEY_FILE", ""); f != "" && c.MasterKey == "" {

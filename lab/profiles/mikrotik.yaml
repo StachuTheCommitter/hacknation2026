@@ -1,0 +1,9 @@
+name: mikrotik
+http:
+  - port: 80
+    site:
+      title: "RouterOS router configuration page"
+      favicon: mikrotik
+      body: '<div>mikrotik RouterOS v6.49.10 <a href="/webfig/">Webfig</a></div>'
+tcp:
+  - {port: 8291, kind: silent}

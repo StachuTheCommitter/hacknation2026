@@ -1,0 +1,11 @@
+name: camera
+http:
+  - port: 80
+    site:
+      title: "Network Camera"
+      favicon: camera
+      headers: {Server: GoAhead-Webs}
+      body: '<div>IP Camera Web Viewer <a href="/doc/page/login.asp">Login</a></div>'
+tcp:
+  - {port: 23, kind: banner, banner: "\r\nBusyBox v1.24.1 (2019-03-11) built-in shell\r\nipcam login: "}
+  - {port: 554, kind: rtsp, banner: "Hipcam RealServer/V1.0"}

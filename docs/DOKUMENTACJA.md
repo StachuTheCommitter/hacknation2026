@@ -1566,3 +1566,31 @@ Kolejność kamieni milowych. Każdy kończy się działającym przyrostem z tes
 ---
 
 *Koniec dokumentu.*
+
+---
+
+## 28. Implementacja – doprecyzowania i odstępstwa od specyfikacji
+
+Sekcja opisuje decyzje podjęte w trakcie implementacji (stan kodu w repozytorium). Tam, gdzie wcześniejsze sekcje mówią inaczej, obowiązuje ta sekcja.
+
+| Obszar | Specyfikacja | Implementacja | Powód |
+|---|---|---|---|
+| Etap 4 – HTTP | `httpx` jako proces | **natywny prober w Go** (`internal/prober`) z biblioteką **wappalyzergo** – tym samym silnikiem, którego używa `httpx -td` | pełna kontrola nad vhostami (Host + SNI), łańcuchem przekierowań, cookies, kontrolą soft-404 i ścieżkami sygnatur; brak parsowania wyjścia procesu; mniej zależności w obrazie workera |
+| Etapy 3–4 | sekwencyjnie | **równolegle**: `nmap -sV` i prober HTTP działają jednocześnie; wynik HTTP dla portu, który nmap rozpoznał (`method=probed`) jako nie-HTTP, jest odrzucany | `-sV` na nietypowych usługach (IoT, własne serwery) potrafi trwać ~100 s na port – równoległość skraca zadanie do czasu wolniejszego etapu |
+| Etap 0 – DNS | `dnsx` | resolver standardowej biblioteki Go | brak dodatkowego narzędzia; workery używają resolvera sieci, w której stoją |
+| Worker | jedno zadanie naraz | **sloty** (`ASI_WORKER_SLOTS`, domyślnie 4); limity tempa i równoległości nadal egzekwuje dispatcher | wykorzystanie czasu oczekiwania na timeouty |
+| Tokeny workerów | token per worker | token może być współdzielony przez repliki (`--scale worker=N`); każda nowa nazwa workera dostaje własny wiersz z tym samym tokenem | wygodne skalowanie w docker compose |
+| Kubełki pory dnia | 4 × 6 h | **6 × 4 h osobno dla dni roboczych i weekendu** (12 kubełków); etykieta np. `PERIODIC(GODZ. 08-12,12-16; DNI ROBOCZE)` | host laboratoryjny działający 8–18 w dni robocze był z 4 kubełkami błędnie uznawany za nieaktywny; test na 14-dniowej historii |
+| Adaptacyjny podział | N_min = 16, start ρ_alive = 0,3 | N_min = 32, start ρ_alive = 0,1 | rzeczywiste sieci są rzadkie; mniejszy narzut uruchamiania narzędzi |
+| DefectDojo | Test per (grupa, kategoria) | **Test per grupa celów** (`ASI – <grupa>`), kategorie jako tagi | prostsza semantyka reimportu (raport = wszystkie aktywne znaleziska grupy) |
+| Nuclei | opcjonalny proces w workerze | **adapter formatu** – szablony nuclei (word / regex / status / favicon) importowane jako sygnatury ASI i wykonywane przez prober | bezpieczeństwo (tylko GET/HEAD, walidacja ścieżek) i działanie na danych z importu; uruchamianie binarki nuclei nie jest zaimplementowane |
+| Migracje | goose | własny migrator (`internal/db`, pliki SQL osadzone w binarce) | brak zależności |
+| UI | Tailwind, Recharts | **ręcznie pisany CSS** (zmienne, tryb jasny/ciemny), wykresy w SVG, React Router; widoki ładowane na żądanie | pierwszy ekran ~64 KB JS gzip; spójny, nienachalny wygląd |
+
+### Wyniki testu end-to-end w laboratorium
+
+`scripts/e2e.sh` (uruchamiany przez `make e2e`) wykonuje: skan bazowy grupy „Lab – usługi” (2048 adresów) → `lab/scenario.sh step2` → skan w trybie differential → asercje. Sprawdza m.in.: wykrycie ≥ 25 hostów, WordPress, panele administracyjne, staging, IoT, EOL, logowanie przez HTTP, wygasły certyfikat, host bez otwartych portów, brak fałszywego `/admin` na SPA (soft-404), klaster drukarek z odstającą wersją firmware, zdarzenia HOST_NEW / HTTP_CHANGED / SERVICE_CHANGED po zmianach, diff z REMOVED / ADDED na wspólnym pokryciu oraz odmowy 403 dla roli VIEWER.
+
+### Macierz RBAC
+
+Pełna lista tras API z wymaganym uprawnieniem i dostępem dla czterech ról: [`docs/RBAC.md`](RBAC.md) (generowana testem `TestRBACMatrix`, który dodatkowo weryfikuje, że VIEWER nie wywołuje żadnej trasy modyfikującej, a MODIFIER żadnej tworzącej ani usuwającej).

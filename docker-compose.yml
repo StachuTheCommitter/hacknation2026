@@ -1,0 +1,53 @@
+# ASI – Attack Surface Intelligence
+#   docker compose up -d --build                         # system (serwer + worker + baza)
+#   docker compose -f docker-compose.yml -f lab/docker-compose.lab.yml up -d --build   # + laboratorium
+name: asi
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: asi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asi}
+      POSTGRES_DB: asi
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asi"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  server:
+    build: {context: ., dockerfile: deploy/Dockerfile, target: server}
+    image: asi-server:local
+    depends_on: {postgres: {condition: service_healthy}}
+    environment:
+      ASI_DATABASE_URL: postgres://asi:${POSTGRES_PASSWORD:-asi}@postgres:5432/asi?sslmode=disable
+      ASI_MASTER_KEY: ${ASI_MASTER_KEY:?uruchom "make keygen" i wpisz klucz do .env}
+      ASI_BASE_URL: ${ASI_BASE_URL:-http://localhost:8080}
+      ASI_BOOTSTRAP_ADMIN_EMAIL: ${ASI_BOOTSTRAP_ADMIN_EMAIL:-admin@asi.local}
+      ASI_BOOTSTRAP_ADMIN_PASSWORD: ${ASI_BOOTSTRAP_ADMIN_PASSWORD:?ustaw hasło administratora w .env}
+      ASI_SEED_DEMO_USERS: ${ASI_SEED_DEMO_USERS:-false}
+      ASI_SEED_DEMO_LAB: ${ASI_SEED_DEMO_LAB:-false}
+      ASI_DEMO_MODE: ${ASI_DEMO_MODE:-false}
+      ASI_GLOBAL_MAX_PPS: ${ASI_GLOBAL_MAX_PPS:-2000}
+      ASI_SCANNER_CONTACT: ${ASI_SCANNER_CONTACT:-cbi@agh.edu.pl}
+      ASI_WORKER_BOOTSTRAP_TOKENS: pool:${ASI_WORKER_TOKEN:?ustaw ASI_WORKER_TOKEN w .env}
+      ASI_DD_URL: ${ASI_DD_URL:-}
+      ASI_DD_TOKEN: ${ASI_DD_TOKEN:-}
+    ports: ["${ASI_PORT:-8080}:8080"]
+    restart: unless-stopped
+
+  worker:
+    build: {context: ., dockerfile: deploy/Dockerfile, target: worker}
+    image: asi-worker:local
+    depends_on: [server]
+    environment:
+      ASI_SERVER_URL: http://server:8080
+      ASI_WORKER_TOKEN: ${ASI_WORKER_TOKEN}
+      ASI_WORKER_MAX_NMAP: 4
+    cap_add: [NET_RAW, NET_ADMIN]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

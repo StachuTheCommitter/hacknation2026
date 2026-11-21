@@ -1,0 +1,10 @@
+name: jenkins
+http:
+  - port: 8081
+    site:
+      status: 403
+      title: "Sign in [Jenkins]"
+      favicon: jenkins
+      headers: {X-Jenkins: "2.426.3", X-Hudson: "1.395", X-Jenkins-Session: "a1b2c3", Server: Jetty(10.0.18)}
+      cookies: [{name: JSESSIONID.a1b2c3, httponly: true}]
+      body: '<form name="login"><input name="j_username"><input type="password" name="j_password"></form>'

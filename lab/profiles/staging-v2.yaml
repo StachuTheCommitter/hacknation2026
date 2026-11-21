@@ -1,0 +1,20 @@
+name: staging
+http:
+  - port: 80
+    site:
+      title: "Portal studenta – STAGING (wersja 2.0-rc1)"
+      favicon: portal
+      headers: {Server: nginx/1.24.0, X-Environment: staging, X-Powered-By: Express, X-Debug-Token: 7f3a9c}
+      cookies: [{name: connect.sid, httponly: true}]
+      body: "<h1>Portal studenta</h1><p>Środowisko testowe – nie używać danych produkcyjnych.</p>"
+      routes:
+        /robots.txt: {body: "User-agent: *\nDisallow: /\n"}
+        /api: {status: 200, title: "API", body: '{"status":"ok","env":"staging"}'}
+  - port: 443
+    tls: self_signed
+    cn: staging.lab.local
+    site:
+      title: "Portal studenta – STAGING (wersja 2.0-rc1)"
+      favicon: portal
+      headers: {Server: nginx/1.24.0, X-Environment: staging}
+      body: "<h1>Portal studenta</h1>"

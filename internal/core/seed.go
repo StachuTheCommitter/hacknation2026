@@ -134,7 +134,7 @@ func (a *App) seedLab(ctx context.Context) error {
 	a.DB.QueryRow(ctx, `select id from scan_profiles where name='Laboratorium'`).Scan(&profID)
 	sys := System
 	g1, err := a.CreateGroup(ctx, sys, GroupInput{Name: "Lab – usługi", Description: "Podsieci z usługami laboratorium (10.77.1.0–10.77.8.255)",
-		ProfileID: profID, RatePPS: 800, HTTPRPS: 20, MaxParallelSweeps: 2, MaxParallelProbes: 4, AlwaysAllowed: true})
+		ProfileID: profID, RatePPS: 4000, HTTPRPS: 40, MaxParallelSweeps: 2, MaxParallelProbes: 4, AlwaysAllowed: true})
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (a *App) seedLab(ctx context.Context) error {
 		return err
 	}
 	g2, err := a.CreateGroup(ctx, sys, GroupInput{Name: "Lab – cała sieć /16", Description: "65 536 adresów – demonstracja skali, podziału i okien czasowych",
-		ProfileID: profID, RatePPS: 1500, HTTPRPS: 20, MaxParallelSweeps: 3, MaxParallelProbes: 4, AlwaysAllowed: true})
+		ProfileID: profID, RatePPS: 4500, HTTPRPS: 40, MaxParallelSweeps: 3, MaxParallelProbes: 4, AlwaysAllowed: true})
 	if err != nil {
 		return err
 	}

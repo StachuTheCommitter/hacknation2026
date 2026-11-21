@@ -1,0 +1,9 @@
+name: spa
+http:
+  - port: 80
+    site:
+      title: "Rezerwacja sal"
+      favicon: spa
+      catch_all: true
+      headers: {Server: nginx/1.25.3}
+      body: '<div id="root"></div><script src="/assets/app.4f1c2.js"></script>'

@@ -478,107 +478,123 @@ func (w *Worker) probe(ctx context.Context, l *model.Lease, scope netx.Scope) (*
 		}
 		groups[spec] = append(groups[spec], hw.h.IP)
 	}
-	t0 := time.Now()
-	if w.tools["nmap"] != "" && len(groups) > 0 {
-		sem := make(chan struct{}, max(w.cfg.MaxNmap, 1))
-		var mu sync.Mutex
-		var wg sync.WaitGroup
-		var firstErr error
-		rate := max(l.RatePPS/max(len(groups), 1), 20)
-		for spec, ips := range groups {
-			wg.Add(1)
-			sem <- struct{}{}
-			go func(spec string, ips []string) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				if strings.Contains(spec, "U:") && !w.privileged {
-					spec = strings.TrimSuffix(strings.SplitN(spec, "U:", 2)[0], ",") // UDP wymaga NET_RAW
-				}
-				if spec == "" {
-					return
-				}
-				args := []string{"-sV", "--version-intensity", strconv.Itoa(p.NmapIntensity), "-Pn", "-n", "-p", spec,
-					"--max-rate", strconv.Itoa(rate), "--max-retries", "2", "--host-timeout", fmt.Sprintf("%ds", p.HostTimeoutSec), "-oX", "-"}
-				if w.privileged {
-					args = append(args, "-sS")
-					if strings.Contains(spec, "U:") {
-						args = append(args, "-sU")
+	// Etapy 3 i 4 równolegle: nmap -sV (bywa wolny na nietypowych usługach) i fingerprinting HTTP.
+	// HTTP sonduje wszystkie otwarte porty TCP; wyniki dla portów, które nmap rozpozna jako nie-HTTP, są odrzucane.
+	httpBy := map[string][]obs.HTTP{}
+	schemeBy := map[string]string{}
+	var httpMu sync.Mutex
+	var phase sync.WaitGroup
+	var nmapErr, httpErr error
+	phase.Add(2)
+	go func() {
+		defer phase.Done()
+		t0 := time.Now()
+		if w.tools["nmap"] != "" && len(groups) > 0 {
+			sem := make(chan struct{}, max(w.cfg.MaxNmap, 1))
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+			var firstErr error
+			rate := max(l.RatePPS/max(len(groups), 1), 20)
+			for spec, ips := range groups {
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(spec string, ips []string) {
+					defer wg.Done()
+					defer func() { <-sem }()
+					if strings.Contains(spec, "U:") && !w.privileged {
+						spec = strings.TrimSuffix(strings.SplitN(spec, "U:", 2)[0], ",") // UDP wymaga NET_RAW
 					}
-				} else {
-					args = append(args, "-sT")
-				}
-				var scripts []string
-				for _, s := range p.NmapScripts {
-					if model.AllowedNmapScripts[s] {
-						scripts = append(scripts, s)
+					if spec == "" {
+						return
 					}
-				}
-				if len(scripts) > 0 {
-					args = append(args, "--script", strings.Join(scripts, ","), "--script-timeout", "15s")
-				}
-				args = append(args, ips...)
-				out, err := run(ctx, "nmap", args...)
-				if err != nil {
+					args := []string{"-sV", "--version-intensity", strconv.Itoa(p.NmapIntensity), "-Pn", "-n", "-p", spec,
+						"--max-rate", strconv.Itoa(rate), "--max-retries", "2", "--host-timeout", fmt.Sprintf("%ds", p.HostTimeoutSec), "-oX", "-"}
+					if w.privileged {
+						args = append(args, "-sS")
+						if strings.Contains(spec, "U:") {
+							args = append(args, "-sU")
+						}
+					} else {
+						args = append(args, "-sT")
+					}
+					var scripts []string
+					for _, s := range p.NmapScripts {
+						if model.AllowedNmapScripts[s] {
+							scripts = append(scripts, s)
+						}
+					}
+					if len(scripts) > 0 {
+						args = append(args, "--script", strings.Join(scripts, ","), "--script-timeout", "15s")
+					}
+					args = append(args, ips...)
+					out, err := run(ctx, "nmap", args...)
+					if err != nil {
+						mu.Lock()
+						if firstErr == nil {
+							firstErr = err
+						}
+						mu.Unlock()
+						return
+					}
+					nr, err := nmapxml.Parse(bytes.NewReader(out))
+					if err != nil {
+						return
+					}
 					mu.Lock()
-					if firstErr == nil {
-						firstErr = err
-					}
-					mu.Unlock()
-					return
-				}
-				nr, err := nmapxml.Parse(bytes.NewReader(out))
-				if err != nil {
-					return
-				}
-				mu.Lock()
-				defer mu.Unlock()
-				for _, h := range nr.Hosts {
-					ip, _ := h.IP()
-					hw := byIP[ip]
-					if hw == nil {
-						continue
-					}
-					for _, pt := range h.Ports {
-						k := fmt.Sprintf("%s/%d", pt.Protocol, pt.PortID)
-						if pt.State.State != "open" {
-							if s := hw.services[k]; s != nil && pt.State.State == "closed" {
-								s.State = "closed"
-							}
+					defer mu.Unlock()
+					for _, h := range nr.Hosts {
+						ip, _ := h.IP()
+						hw := byIP[ip]
+						if hw == nil {
 							continue
 						}
-						s := nmapxml.ServiceFromPort(pt)
-						if fp := s.Scripts["ssh-hostkey-fp"]; fp != "" {
-							hw.sshFP = fp
+						for _, pt := range h.Ports {
+							k := fmt.Sprintf("%s/%d", pt.Protocol, pt.PortID)
+							if pt.State.State != "open" {
+								if s := hw.services[k]; s != nil && pt.State.State == "closed" {
+									s.State = "closed"
+								}
+								continue
+							}
+							s := nmapxml.ServiceFromPort(pt)
+							if fp := s.Scripts["ssh-hostkey-fp"]; fp != "" {
+								hw.sshFP = fp
+							}
+							if s.DeviceType != "" {
+								hw.dev = s.DeviceType
+							}
+							cp := s
+							hw.services[k] = &cp
 						}
-						if s.DeviceType != "" {
-							hw.dev = s.DeviceType
-						}
-						cp := s
-						hw.services[k] = &cp
 					}
-				}
-			}(spec, ips)
+				}(spec, ips)
+			}
+			wg.Wait()
+			if firstErr != nil && ctx.Err() != nil {
+				nmapErr = ctx.Err()
+				return
+			}
+			if firstErr != nil {
+				res.Warnings = append(res.Warnings, "nmap -sV: "+firstErr.Error())
+			}
 		}
-		wg.Wait()
-		if firstErr != nil && ctx.Err() != nil {
-			return nil, ctx.Err()
+		httpMu.Lock()
+		res.Stats["nmap_sec"] = time.Since(t0).Seconds()
+		httpMu.Unlock()
+	}()
+	go func() {
+		defer phase.Done()
+		t1 := time.Now()
+		if !p.HTTPEnabled {
+			return
 		}
-		if firstErr != nil {
-			res.Warnings = append(res.Warnings, "nmap -sV: "+firstErr.Error())
-		}
-	}
-	res.Stats["nmap_sec"] = time.Since(t0).Seconds()
-	// Etap 4: HTTP/HTTPS
-	t1 := time.Now()
-	if p.HTTPEnabled {
-		paths := append([]string{}, p.ProberPaths...)
-		pr, err := prober.New(l.UserAgent, time.Duration(p.HTTPTimeoutSec)*time.Second, max(l.HTTPRPS, 1), paths, model.SensitivePaths)
+		pr, err := prober.New(l.UserAgent, time.Duration(p.HTTPTimeoutSec)*time.Second, max(l.HTTPRPS, 1), append([]string{}, p.ProberPaths...), model.SensitivePaths)
 		if err != nil {
-			return nil, err
+			httpErr = err
+			return
 		}
 		sem := make(chan struct{}, 8)
 		var wg sync.WaitGroup
-		var mu sync.Mutex
 		for _, hw := range work {
 			wg.Add(1)
 			sem <- struct{}{}
@@ -589,22 +605,15 @@ func (w *Worker) probe(ctx context.Context, l *model.Lease, scope netx.Scope) (*
 				if len(vhosts) > 6 {
 					vhosts = vhosts[:6]
 				}
-				for _, s := range sortedServices(hw.services) {
-					if ctx.Err() != nil {
-						return
-					}
-					if s.Proto != "tcp" || s.State != "open" {
+				for _, pp := range hw.h.Ports {
+					if ctx.Err() != nil || pp.Proto != "tcp" {
 						continue
 					}
-					if prober.NonHTTP[s.Service] && s.Nmap != nil && s.Nmap.Method == "probed" {
-						continue
-					}
-					hintTLS := s.Tunnel == "ssl" || strings.Contains(s.Service, "https") || strings.HasPrefix(s.Service, "ssl")
-					scheme := pr.Detect(ctx, hw.h.IP, s.Port, hintTLS)
+					light := pp.Known && l.Mode == "differential"
+					scheme := pr.Detect(ctx, hw.h.IP, pp.Port, false)
 					var results []obs.HTTP
 					for i, vh := range vhosts {
-						light := s.Light
-						h, err := pr.Probe(ctx, hw.h.IP, s.Port, scheme, vh, light, extraPaths(l))
+						h, err := pr.Probe(ctx, hw.h.IP, pp.Port, scheme, vh, light, extraPaths(l))
 						if err != nil {
 							if i == 0 {
 								break // port nie mówi HTTP – nie próbujemy vhostów
@@ -613,20 +622,45 @@ func (w *Worker) probe(ctx context.Context, l *model.Lease, scope netx.Scope) (*
 						}
 						results = append(results, *h)
 					}
-					mu.Lock()
-					s.HTTP = results
-					if s.Service == "" && len(results) > 0 {
-						s.Service = scheme
-					}
-					mu.Unlock()
+					k := fmt.Sprintf("%s|tcp/%d", hw.h.IP, pp.Port)
+					httpMu.Lock()
+					httpBy[k], schemeBy[k] = results, scheme
+					httpMu.Unlock()
 				}
 			}(hw)
 		}
 		wg.Wait()
-	}
-	res.Stats["http_sec"] = time.Since(t1).Seconds()
+		httpMu.Lock()
+		res.Stats["http_sec"] = time.Since(t1).Seconds()
+		httpMu.Unlock()
+	}()
+	phase.Wait()
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
+	}
+	if nmapErr != nil {
+		return nil, nmapErr
+	}
+	if httpErr != nil {
+		return nil, httpErr
+	}
+	for _, hw := range work {
+		for k, s := range hw.services {
+			hk := hw.h.IP + "|" + k
+			results := httpBy[hk]
+			if len(results) == 0 || s.Proto != "tcp" || s.State != "open" {
+				continue
+			}
+			if prober.NonHTTP[s.Service] && s.Nmap != nil && s.Nmap.Method == "probed" {
+				continue // nmap pewnie rozpoznał usługę nie-HTTP
+			}
+			s.HTTP = results
+			if s.Service == "" || s.Service == "tcpwrapped" || strings.HasSuffix(s.Service, "?") || s.Nmap == nil || s.Nmap.Method == "table" {
+				if s.Service == "" || s.Nmap == nil || s.Nmap.Method == "table" {
+					s.Service = schemeBy[hk]
+				}
+			}
+		}
 	}
 	up := true
 	for _, hw := range work {

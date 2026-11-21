@@ -1,0 +1,19 @@
+name: oldapp
+http:
+  - port: 80
+    site:
+      title: "System rezerwacji – logowanie"
+      favicon: oldapp
+      headers: {Server: Apache/2.2.15 (CentOS), X-Powered-By: PHP/5.6.40, X-Debug-Token: 4b2e1f}
+      cookies: [{name: laravel_session}, {name: XSRF-TOKEN}]
+      body: '<form method="post" action="/login"><input name="email"><input type="password" name="password"><button>Zaloguj</button></form>'
+      routes:
+        /.git/HEAD: {body: "ref: refs/heads/master\n"}
+        /server-status: {title: "Apache Status", body: "<h1>Apache Server Status for old.lab.local</h1>"}
+  - port: 8443
+    tls: expired
+    cn: old.lab.local
+    site:
+      title: "System rezerwacji (HTTPS)"
+      headers: {Server: Apache/2.2.15 (CentOS)}
+      body: "<p>Panel</p>"

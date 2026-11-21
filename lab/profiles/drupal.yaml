@@ -1,0 +1,12 @@
+name: drupal
+http:
+  - port: 80
+    site:
+      title: "Wydział Informatyki | Strona główna"
+      favicon: drupal
+      headers: {X-Generator: "Drupal 10 (https://www.drupal.org)", X-Drupal-Cache: HIT, Server: Apache/2.4.62 (Debian), X-Powered-By: PHP/8.2.24}
+      cookies: [{name: SSESS4a1b2c, httponly: true}]
+      body: '<div data-drupal-selector="main"><h1>Wydział</h1><script src="/core/misc/drupal.js"></script></div>'
+      routes:
+        /user/login: {title: "Logowanie | Wydział", body: '<form><input name="name"><input type="password" name="pass"></form>'}
+        /robots.txt: {body: "User-agent: *\nDisallow: /admin/\n"}

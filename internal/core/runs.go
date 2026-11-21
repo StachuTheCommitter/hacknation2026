@@ -347,7 +347,7 @@ func (a *App) groupStats(ctx context.Context, groupID string) GroupStats {
 	var s GroupStats
 	json.Unmarshal(raw, &s)
 	if s.AliveRatio == 0 {
-		s.AliveRatio = 0.3
+		s.AliveRatio = 0.1
 	}
 	if s.OpenPerAlive == 0 {
 		s.OpenPerAlive = 3
@@ -450,7 +450,7 @@ func (a *App) Estimate(ctx context.Context, g *Group, p model.Profile, addrs uin
 
 func (a *App) chunkSize(ipsPerSec float64) int {
 	n := ipsPerSec * a.Th.TaskTarget.Seconds()
-	return int(math.Max(16, math.Min(4096, n)))
+	return int(math.Max(32, math.Min(4096, n)))
 }
 
 // calendarFinish symuluje przyszłe okna (krok 5 min, horyzont 14 dni).

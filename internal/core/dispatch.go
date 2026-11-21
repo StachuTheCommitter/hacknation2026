@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -33,22 +32,38 @@ type Worker struct {
 	Warnings      []string          `json:"warnings"`
 }
 
-// AuthWorker sprawdza token workera (Bearer) i zwraca jego id.
+// AuthWorker sprawdza token workera (Bearer) i zwraca jego id. Token może być współdzielony przez
+// kilka replik (docker compose --scale worker=N): każda nowa nazwa dostaje własny wiersz z tym samym tokenem.
 func (a *App) AuthWorker(ctx context.Context, name, token string) (string, error) {
-	if !strings.HasPrefix(token, "asi_wk_") && len(token) < 16 {
+	if len(token) < 16 {
 		return "", errors.New("niepoprawny token")
 	}
-	rows, err := a.DB.Query(ctx, `select id, name, token_hash from workers where ($1='' or name=$1)`, name)
+	rows, err := a.DB.Query(ctx, `select id, name, token_hash, vantage from workers order by (name=$1) desc, created_at`, name)
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
+	type w struct{ id, name, hash, vantage string }
+	var list []w
 	for rows.Next() {
-		var id, n, h string
-		rows.Scan(&id, &n, &h)
-		if auth.CheckPassword(h, token) {
-			return id, nil
+		var x w
+		rows.Scan(&x.id, &x.name, &x.hash, &x.vantage)
+		list = append(list, x)
+	}
+	rows.Close()
+	for _, x := range list {
+		if !auth.CheckPassword(x.hash, token) {
+			continue
 		}
+		if x.name == name || name == "" {
+			return x.id, nil
+		}
+		var id string
+		err := a.DB.QueryRow(ctx, `insert into workers(name,token_hash,vantage,status) values($1,$2,$3,'new')
+			on conflict(name) do update set token_hash=excluded.token_hash returning id`, name, x.hash, x.vantage).Scan(&id)
+		if err == nil {
+			a.Audit(ctx, Actor{Email: "worker:" + name}, "worker.register", "worker", id, map[string]any{"template": x.name})
+		}
+		return id, err
 	}
 	return "", errors.New("nieznany worker lub token")
 }
@@ -216,7 +231,7 @@ func (a *App) Lease(ctx context.Context, workerID string) (*model.Lease, error) 
 		n := float64(a.chunkSize(ips))
 		if gc.win.Remaining >= 0 { // okno skończone: zadanie musi się zmieścić z marginesem 20%
 			fit := ips * float64(gc.win.Remaining) / 1.2
-			if fit < 16 {
+			if fit < 32 {
 				continue
 			}
 			n = math.Min(n, fit)

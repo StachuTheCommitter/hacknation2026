@@ -1,0 +1,9 @@
+name: moodle
+http:
+  - port: 80
+    site:
+      title: "Platforma e-learningowa AGH Lab"
+      favicon: moodle
+      headers: {Server: nginx/1.24.0}
+      cookies: [{name: MoodleSession, httponly: true}]
+      body: '<div class="moodle-core"><script>M.cfg = {"wwwroot":"http://moodle.lab.local"};</script><a href="/login/index.php">Zaloguj</a></div>'
