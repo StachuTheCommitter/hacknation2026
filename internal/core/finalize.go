@@ -219,12 +219,27 @@ func (a *App) retryKeys(ctx context.Context, runID string) map[string]bool {
 	return m
 }
 
+// Kubełki pory dnia: 6 × 4 h, osobno dla dni roboczych i weekendu (12 kubełków).
 func bucketOf(t time.Time, loc *time.Location) (int, bool) {
 	l := t.In(loc)
-	return l.Hour() / 6, l.Weekday() == time.Saturday || l.Weekday() == time.Sunday
+	return l.Hour() / 4, l.Weekday() == time.Saturday || l.Weekday() == time.Sunday
 }
 
-var bucketNames = []string{"NOC", "RANO", "POPOŁUDNIE", "WIECZÓR"}
+func bucketIdx(tod int, weekend bool) int {
+	if weekend {
+		return tod + 6
+	}
+	return tod
+}
+
+var bucketNames = []string{"00-04", "04-08", "08-12", "12-16", "16-20", "20-24"}
+
+func bucketLabel(i int) string {
+	if i >= 6 {
+		return "WEEKEND " + bucketNames[i-6]
+	}
+	return bucketNames[i]
+}
 
 type entityState struct {
 	table, etype, id, key, ip, state, labelsStr string
@@ -304,7 +319,7 @@ func (a *App) finalizeRun(ctx context.Context, r *Run) error {
 			newState = "ACTIVE"
 		} else {
 			// periodyczne: braki liczą się tylko w kubełkach, w których encja bywa aktywna
-			if len(per.Active) == 0 || containsInt(per.Active, bucket) {
+			if len(per.Active) == 0 || containsInt(per.Active, bucketIdx(bucket, weekend)) {
 				misses++
 			}
 			kEff, tMin := a.Th.K, a.Th.InactiveAfter
@@ -445,12 +460,13 @@ func (a *App) availabilityLabels(ctx context.Context, entityID string, old []str
 	if m > 1 {
 		per.Flap = trans / float64(m-1)
 	}
-	upB, nB := [4]int{}, [4]int{}
+	var upB, nB [12]int
 	upWD, nWD, upWE, nWE := 0, 0, 0, 0
 	for _, p := range pts {
-		nB[p.b]++
+		i := bucketIdx(p.b, p.weekend)
+		nB[i]++
 		if p.up {
-			upB[p.b]++
+			upB[i]++
 		}
 		if p.weekend {
 			nWE++
@@ -466,13 +482,13 @@ func (a *App) availabilityLabels(ctx context.Context, entityID string, old []str
 	}
 	hi, lo := false, false
 	usable := 0
-	for b := 0; b < 4; b++ {
+	for b := 0; b < 12; b++ {
 		if nB[b] == 0 {
 			continue
 		}
 		ratio := float64(upB[b]) / float64(nB[b])
-		per.Buckets[bucketNames[b]] = ratio
-		per.Counts[bucketNames[b]] = nB[b]
+		per.Buckets[bucketLabel(b)] = ratio
+		per.Counts[bucketLabel(b)] = nB[b]
 		if nB[b] >= 3 {
 			usable++
 			if ratio >= 0.85 {
@@ -498,12 +514,20 @@ func (a *App) availabilityLabels(ctx context.Context, entityID string, old []str
 	}
 	if hi && lo && usable >= 2 {
 		var names []string
+		weekdayOnly := true
+		seenTod := map[int]bool{}
 		for _, b := range per.Active {
-			names = append(names, bucketNames[b])
+			if b >= 6 {
+				weekdayOnly = false
+			}
+			if !seenTod[b%6] {
+				seenTod[b%6] = true
+				names = append(names, bucketNames[b%6])
+			}
 		}
 		sort.Strings(names)
-		per.Label = strings.Join(names, ",")
-		if nWE >= 3 && nWD >= 3 && per.Weekday >= 0.5 && per.Weekend <= 0.1 {
+		per.Label = "GODZ. " + strings.Join(names, ",")
+		if weekdayOnly && nWE >= 3 {
 			per.Label += "; DNI ROBOCZE"
 		}
 		labels = append(labels, "PERIODIC("+per.Label+")")

@@ -24,6 +24,7 @@ type ingestCtx struct {
 	source   string
 	baseline bool // pierwszy przebieg grupy: zmiany zapisujemy z priorytetem 0
 	runStart time.Time
+	at       time.Time // znacznik czasu zmian (import historyczny); zero = teraz
 	changes  []pendingChange
 }
 
@@ -46,6 +47,9 @@ func (ic *ingestCtx) change(entityType, key, ip, typ, summary string, base int, 
 
 func (a *App) newIngestCtx(ctx context.Context, run *Run, taskID, worker, source string) *ingestCtx {
 	ic := &ingestCtx{runID: run.ID, groupID: run.GroupID, taskID: taskID, worker: worker, source: source, runStart: run.CreatedAt}
+	if source != "scanner" && run.StartedAt != nil && time.Since(*run.StartedAt) > time.Minute {
+		ic.at = *run.StartedAt
+	}
 	if run.GroupID != "" && source == "scanner" {
 		var n int
 		a.DB.QueryRow(ctx, `select count(*) from scan_runs where group_id=$1 and source='scanner' and status in ('COMPLETED','SUPERSEDED') and id<>$2`, run.GroupID, run.ID).Scan(&n)
@@ -71,8 +75,12 @@ func (a *App) flushChanges(ctx context.Context, ic *ingestCtx) {
 		if c.diff == nil {
 			c.diff = []FieldDiff{}
 		}
-		a.DB.Exec(ctx, `insert into changes(run_id,entity_type,entity_key,host_ip,change_type,summary,diff,priority) values($1,$2,$3,$4,$5,$6,$7,$8)`,
-			nullUUID(ic.runID), c.entityType, c.entityKey, ip, c.changeType, c.summary, jsonb(c.diff), min(prio, 100))
+		at := time.Now()
+		if !ic.at.IsZero() {
+			at = ic.at
+		}
+		a.DB.Exec(ctx, `insert into changes(run_id,entity_type,entity_key,host_ip,change_type,summary,diff,priority,at) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			nullUUID(ic.runID), c.entityType, c.entityKey, ip, c.changeType, c.summary, jsonb(c.diff), min(prio, 100), at)
 	}
 	if len(ic.changes) > 0 {
 		a.Events.Publish("changes", map[string]any{"count": len(ic.changes)})

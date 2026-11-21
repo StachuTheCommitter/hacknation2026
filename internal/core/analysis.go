@@ -508,7 +508,7 @@ func (a *App) analyzeService(ctx context.Context, ic *ingestCtx, hostID, svcID, 
 	tf := a.temporalFactor(ctx, svcID)
 	techs := a.saveTechs(ctx, "service", svcID, hostID, cs, tf, false)
 	conf := 0.0
-	if c := cs[strings.ToLower(s.Product)]; c != nil {
+	if c := cs[strings.ToLower(canonTech(s.Product))]; c != nil {
 		conf = c.confidence() * tf
 	} else if s.Service != "" {
 		conf = 0.25

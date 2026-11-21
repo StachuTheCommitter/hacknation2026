@@ -690,7 +690,7 @@ func (a *App) Dashboard(ctx context.Context) (*Dashboard, error) {
 			d.Delta["_baseline"] = 1
 		}
 	}
-	runs, _ := a.ListRuns(ctx, RunFilter{Limit: 20})
+	runs, _ := a.ListRuns(ctx, RunFilter{Limit: 20, Source: "scanner"})
 	for _, r := range runs {
 		if r.Status == "RUNNING" || strings.HasPrefix(r.Status, "PAUSED") || (r.FinishedAt != nil && time.Since(*r.FinishedAt) < 30*time.Minute) {
 			full, err := a.GetRun(ctx, r.ID)
