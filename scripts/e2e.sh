@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Test end-to-end w laboratorium: skan bazowy → zmiany (scenario.sh step2) → skan szybki → asercje.
-# Wymaga działającego stosu: make lab. Zmienne: ASI_URL (domyślnie http://localhost:8080), DC (polecenie compose).
+# Wymaga działającego stosu: make lab. Zmienne: ASI_URL (domyślnie http://localhost:8800), DC (polecenie compose).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-URL=${ASI_URL:-http://localhost:8080}
+URL=${ASI_URL:-http://localhost:${ASI_PORT:-8800}}
 B=$URL/api/v1
 JAR=$(mktemp)
 trap 'rm -f "$JAR"' EXIT

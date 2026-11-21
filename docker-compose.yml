@@ -1,6 +1,7 @@
 # ASI – Attack Surface Intelligence
 #   docker compose up -d --build                         # system (serwer + worker + baza)
 #   docker compose -f docker-compose.yml -f lab/docker-compose.lab.yml up -d --build   # + laboratorium
+#   docker compose -f docker-compose.yml -f deploy/defectdojo.yml up -d                # + lokalny DefectDojo
 name: asi
 
 services:
@@ -24,7 +25,7 @@ services:
     environment:
       ASI_DATABASE_URL: postgres://asi:${POSTGRES_PASSWORD:-asi}@postgres:5432/asi?sslmode=disable
       ASI_MASTER_KEY: ${ASI_MASTER_KEY:?uruchom "make keygen" i wpisz klucz do .env}
-      ASI_BASE_URL: ${ASI_BASE_URL:-http://localhost:8080}
+      ASI_BASE_URL: ${ASI_BASE_URL:-http://localhost:8800}
       ASI_BOOTSTRAP_ADMIN_EMAIL: ${ASI_BOOTSTRAP_ADMIN_EMAIL:-admin@asi.local}
       ASI_BOOTSTRAP_ADMIN_PASSWORD: ${ASI_BOOTSTRAP_ADMIN_PASSWORD:?ustaw hasło administratora w .env}
       ASI_SEED_DEMO_USERS: ${ASI_SEED_DEMO_USERS:-false}
@@ -35,7 +36,9 @@ services:
       ASI_WORKER_BOOTSTRAP_TOKENS: pool:${ASI_WORKER_TOKEN:?ustaw ASI_WORKER_TOKEN w .env}
       ASI_DD_URL: ${ASI_DD_URL:-}
       ASI_DD_TOKEN: ${ASI_DD_TOKEN:-}
-    ports: ["${ASI_PORT:-8080}:8080"]
+      ASI_DD_USER: ${ASI_DD_USER:-}
+      ASI_DD_PASSWORD: ${ASI_DD_PASSWORD:-}
+    ports: ["${ASI_PORT:-8800}:8080"]
     restart: unless-stopped
 
   worker:

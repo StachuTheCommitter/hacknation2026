@@ -13,6 +13,7 @@ import (
 
 	"asi/internal/dd"
 	"asi/internal/obs"
+	"asi/internal/sigs"
 )
 
 // DDConfig – konfiguracja integracji z DefectDojo (token przechowywany zaszyfrowany).
@@ -45,7 +46,7 @@ func (a *App) DDConfig(ctx context.Context) DDConfig {
 		c.Tests = map[string]int{}
 	}
 	tok, _ := a.GetSecret(ctx, "dd_token")
-	c.HasToken = tok != ""
+	c.HasToken = tok != "" || (a.Cfg.DDUser != "" && a.Cfg.DDPass != "" && c.URL == a.Cfg.DDURL)
 	return c
 }
 
@@ -75,6 +76,22 @@ func (a *App) ddClient(ctx context.Context) (*dd.Client, DDConfig, error) {
 	tok, err := a.GetSecret(ctx, "dd_token")
 	if err != nil {
 		return nil, c, err
+	}
+	// lokalny DefectDojo z compose: token pobierany automatycznie z loginu i hasła (ASI_DD_USER / ASI_DD_PASSWORD)
+	if tok == "" && c.URL != "" && a.Cfg.DDUser != "" && a.Cfg.DDPass != "" {
+		if t, err := dd.TokenAuth(ctx, c.URL, a.Cfg.DDUser, a.Cfg.DDPass, c.InsecureTLS); err == nil {
+			tok = t
+			a.SetSecret(ctx, "dd_token", t)
+			slog.Info("pobrano token API DefectDojo", "url", c.URL)
+			// lokalna instancja z compose: deduplikacja jest domyślnie wyłączona – włączamy ją (ASI na niej polega)
+			if err := dd.New(c.URL, t, c.InsecureTLS).EnableDeduplication(ctx); err != nil {
+				slog.Warn("nie udało się włączyć deduplikacji w DefectDojo", "err", err)
+			} else {
+				slog.Info("włączono deduplikację w DefectDojo")
+			}
+		} else {
+			return nil, c, Invalid("nie udało się pobrać tokenu DefectDojo (instancja jeszcze startuje?): "+err.Error(), nil)
+		}
 	}
 	if c.URL == "" || tok == "" {
 		return nil, c, Invalid("integracja z DefectDojo nie jest skonfigurowana (Administracja → DefectDojo)", nil)
@@ -130,55 +147,88 @@ type Finding struct {
 var sevMap = map[string]string{"info": "Info", "low": "Low", "medium": "Medium", "high": "High"}
 
 // syncFindings tworzy znaleziska z dopasowań sygnatur oznaczonych do eksportu.
+func exportTitle(sg *sigs.Signature) string {
+	if sg.Export != nil && sg.Export.Title != "" {
+		return sg.Export.Title
+	}
+	return sg.Name
+}
+
+// syncFindings tworzy znaleziska z dopasowań sygnatur oznaczonych do eksportu. Sygnatury z tym samym tytułem
+// eksportu (np. wykrycie po przekierowaniu i po ścieżce) dają JEDNO znalezisko na encję – z dowodami wszystkich reguł.
 func (a *App) syncFindings(ctx context.Context, etype, key, ip, hostID, groupID string, hits []sigHit, evaluated map[string]bool, url string, port int, proto, vhost string, techs []obs.Tech) {
-	matched := map[string]bool{}
+	groups := map[string][]sigHit{}
 	for _, x := range hits {
-		sg := x.sg
-		if sg.Export == nil || !sg.Export.DefectDojo || matched[sg.ID] {
+		if x.sg.Export == nil || !x.sg.Export.DefectDojo {
 			continue
 		}
-		matched[sg.ID] = true
-		rule := "sig:" + sg.ID
+		t := exportTitle(x.sg)
+		dup := false
+		for _, y := range groups[t] {
+			dup = dup || y.sg.ID == x.sg.ID
+		}
+		if !dup {
+			groups[t] = append(groups[t], x)
+		}
+	}
+	for title, gh := range groups {
+		sort.Slice(gh, func(i, j int) bool {
+			if gh[i].sg.Priority != gh[j].sg.Priority {
+				return gh[i].sg.Priority > gh[j].sg.Priority
+			}
+			return gh[i].sg.ID < gh[j].sg.ID
+		})
+		sg := gh[0].sg
+		var ids, ev []string
+		comp, ver := "", ""
+		sev := sg.Severity
+		for _, x := range gh {
+			ids = append(ids, x.sg.ID)
+			ev = append(ev, x.res.Evidence...)
+			if x.sg.Technology != nil && comp == "" {
+				comp, ver = x.sg.Technology.Name, x.res.Version
+			}
+		}
+		sort.Strings(ids)
+		sort.Strings(ev)
+		ev = dedupeStrings(ev)
 		cat := ""
 		if len(sg.Categories) > 0 {
 			cat = sg.Categories[0]
-		}
-		title := sg.Export.Title
-		if title == "" {
-			title = sg.Name
 		}
 		where := fmt.Sprintf("%s:%d", ip, port)
 		if vhost != "" {
 			where = fmt.Sprintf("%s (%s:%d)", vhost, ip, port)
 		}
 		fullTitle := fmt.Sprintf("[ASI] %s – %s", title, where)
-		ev := append([]string(nil), x.res.Evidence...)
-		sort.Strings(ev)
-		desc := fmt.Sprintf("Kategoria: %s\nReguła: %s (sygnatura ASI)\nEndpoint: %s\nDowody:\n- %s\n\nObserwacja informacyjna z discovery ASI – wymaga oceny analityka.",
-			cat, sg.ID, url, strings.Join(ev, "\n- "))
-		comp, ver := "", ""
-		if sg.Technology != nil {
-			comp, ver = sg.Technology.Name, x.res.Version
-		}
+		desc := fmt.Sprintf("Kategoria: %s\nReguły: %s (sygnatury ASI)\nEndpoint: %s\nDowody:\n- %s\n\nObserwacja informacyjna z discovery ASI – wymaga oceny analityka.",
+			cat, strings.Join(ids, ", "), url, strings.Join(ev, "\n- "))
 		ep := map[string]any{"protocol": strings.ToLower(proto), "host": ip, "port": port}
-		if proto != "tcp" && proto != "udp" {
-			ep["protocol"] = proto
-		}
 		for _, r := range sg.AllRequests() {
 			ep["path"] = r.Path
 			break
 		}
-		dedup := a.Keys.MAC("finding", key, rule)
+		dedup := a.Keys.MAC("finding", key, "title:"+title)
 		a.DB.Exec(ctx, `insert into findings(entity_type,entity_key,host_ip,group_id,rule,category,title,severity,description,component_name,component_version,endpoint,dedup_key,exported)
 			values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,true)
-			on conflict(dedup_key) do update set title=excluded.title, severity=excluded.severity, description=excluded.description, component_name=excluded.component_name,
+			on conflict(dedup_key) do update set rule=excluded.rule, title=excluded.title, severity=excluded.severity, description=excluded.description, component_name=excluded.component_name,
 			component_version=excluded.component_version, endpoint=excluded.endpoint, active=true, last_seen=now(), group_id=coalesce(findings.group_id,excluded.group_id)`,
-			etype, key, ip, nullUUID(groupID), rule, cat, fullTitle, sevMap[sg.Severity], desc, comp, ver, jsonb(ep), dedup)
+			etype, key, ip, nullUUID(groupID), "sig:"+strings.Join(ids, "+"), cat, fullTitle, sevMap[sev], desc, comp, ver, jsonb(ep), dedup)
+	}
+	// dezaktywacja: sygnatury ocenione bez dopasowania, których tytułu nie pokryła żadna inna dopasowana reguła
+	byID := map[string]*sigs.Signature{}
+	for _, sg := range a.Sigs.All() {
+		byID[sg.ID] = sg
 	}
 	for id := range evaluated {
-		if !matched[id] {
-			a.DB.Exec(ctx, `update findings set active=false where entity_key=$1 and rule=$2 and active`, key, "sig:"+id)
+		sg := byID[id]
+		if sg == nil || sg.Export == nil || !sg.Export.DefectDojo {
+			continue
 		}
+		if _, ok := groups[exportTitle(sg)]; ok {
+			continue
+		}
+		a.DB.Exec(ctx, `update findings set active=false where dedup_key=$1 and active`, a.Keys.MAC("finding", key, "title:"+exportTitle(sg)))
 	}
 }
 

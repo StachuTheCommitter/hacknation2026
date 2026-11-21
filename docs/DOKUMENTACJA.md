@@ -1591,6 +1591,39 @@ Sekcja opisuje decyzje podjęte w trakcie implementacji (stan kodu w repozytoriu
 
 `scripts/e2e.sh` (uruchamiany przez `make e2e`) wykonuje: skan bazowy grupy „Lab – usługi” (2048 adresów) → `lab/scenario.sh step2` → skan w trybie differential → asercje. Sprawdza m.in.: wykrycie ≥ 25 hostów, WordPress, panele administracyjne, staging, IoT, EOL, logowanie przez HTTP, wygasły certyfikat, host bez otwartych portów, brak fałszywego `/admin` na SPA (soft-404), klaster drukarek z odstającą wersją firmware, zdarzenia HOST_NEW / HTTP_CHANGED / SERVICE_CHANGED po zmianach, diff z REMOVED / ADDED na wspólnym pokryciu oraz odmowy 403 dla roli VIEWER.
 
+### Testy na szablonach organizatorów (`lab.zip`) i lokalnym DefectDojo
+
+Każdy stos z `lab.zip` był uruchamiany osobno i skanowany przez worker w sieci hosta (`deploy/worker-hostnet.yml`, cel `127.0.0.1`, profil „Lab organizatorów (porty hosta)”).
+
+| Stos | Wykryte (wybór) | Zmiany po modyfikacji |
+|---|---|---|
+| custom-network | RabbitMQ 3.13.7 (AMQP + panel), PostgreSQL, OpenSSH, instalator Gitea, httpbin (gunicorn 19.9.0), domyślna strona nginx | – |
+| quickstart | usługi stosu | zatrzymanie usługi → `SERVICE_MISSING` (SUSPECT), potem `REMOVED` w diff; ponowny start → `SERVICE_RETURNED` / `ADDED`; kolejne cykle → etykieta flapping |
+| vulnerable | WordPress 4.7.5 (EOL + odsłonięty instalator), PHP 5.6.30, DVWA, vsftpd 3.0.2, Adminer | – |
+| modern | instalator WordPress (latest), phpMyAdmin, Redis 7.4.12, panel Nginx Proxy Manager (81), OpenResty 80/443 | – |
+| modern-proxy | dashboard i API Traefika bez uwierzytelnienia, API Toxiproxy, WordPress za proxy | `ENABLE_LATENCY=true` → `RESPONSE_SLOW` („486 ms, wcześniej 8 ms”) |
+
+DefectDojo uruchomione lokalnie (`make dojo`, obrazy z Docker Hub):
+- ASI pobrało token i włączyło deduplikację;
+- import 4 znalezisk do jednego Testu `ASI – Lab organizatorów`;
+- FP oznaczony w DefectDojo został pobrany do ASI (wynik hosta 90 → 45);
+- reimport po skanie differential nie stworzył duplikatów, a status FP został zachowany;
+- FP oznaczony w ASI pojawił się w DefectDojo (`false_p=true`, `active=false`).
+
+Zmiany w kodzie wynikające z tych testów:
+
+| Problem | Poprawka |
+|---|---|
+| Traefik odpowiada TLS-em na portach HTTP, więc detekcja wybierała https/404 | `prober.Detect`: najpierw zwykłe `GET / HTTP/1.0`. TLS jest używany najpierw tylko na 443/8443/9443 i przy wskazówce z nmapa; odpowiedź 400 wspominająca https powoduje przejście na TLS. |
+| Fałszywy vhost z domyślnego certyfikatu Traefika (`*.traefik.default`) | Nazwy z SAN typu `*.traefik.default` i `localhost` są pomijane. Vhosty są sondowane tylko z nazw pochodzących z DNS lub dodanych ręcznie. |
+| Kilka sygnatur dawało znaleziska o tym samym tytule | Trafienia są grupowane po tytule eksportu. Opis zawiera wszystkie reguły i dowody i jest deterministyczny, bo od niego zależy `hash_code` DefectDojo. |
+| Domyślnie wyłączona deduplikacja w DefectDojo | Przy konfiguracji user/hasło ASI włącza ją przez `PATCH /system_settings/`. |
+| `tcpwrapped` / `service?` traktowane jako znane w trybie differential | Takie usługi są ponownie sondowane. Brak HTTP liczy się jako zniknięcie tylko wtedy, gdy usługa była faktycznie sondowana. |
+| Brak sygnału „host/usługa nie odpowiada” przed upływem retencji | Zdarzenia `HOST_MISSING` / `SERVICE_MISSING` przy ACTIVE → SUSPECT oraz `*_RETURNED` przy powrocie. |
+| Degradacja wydajności niewidoczna | Kolumna `http_endpoints.response_ms` (migracja 002). Zdarzenia `RESPONSE_SLOW` / `RESPONSE_NORMAL` przy co najmniej dwukrotnym wzroście i +300 ms. Kolumna czasu odpowiedzi w UI. |
+| Usługi na 127.0.0.1 niewidoczne z kontenera | Worker w sieci hosta (`ASI_WORKER_LOOPBACK=1`, capability `loopback`). Dispatcher kieruje przebiegi z loopbackiem tylko do takich workerów. Skan portów na loopbacku używa `nmap -sT`. |
+| Brak sygnatur dla usług z szablonów | `signatures/builtin/apps.yaml`: instalatory WordPress/Gitea, Gitea, panele RabbitMQ / Traefik / NPM / Adminer, DVWA, httpbin, Toxiproxy, wolna odpowiedź. WordPress wersja z `?ver=`, AMQP/MQTT jako odsłonięte bazy/kolejki. |
+
 ### Macierz RBAC
 
 Pełna lista tras API z wymaganym uprawnieniem i dostępem dla czterech ról: [`docs/RBAC.md`](RBAC.md) (generowana testem `TestRBACMatrix`, który dodatkowo weryfikuje, że VIEWER nie wywołuje żadnej trasy modyfikującej, a MODIFIER żadnej tworzącej ani usuwającej).

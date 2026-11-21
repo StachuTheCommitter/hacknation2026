@@ -19,7 +19,7 @@ To polecenie:
 2. buduje obrazy;
 3. uruchamia system razem z laboratorium: 37 kontenerów w sieci `10.77.0.0/16`, tryb demo i konta demonstracyjne.
 
-Interfejs: **http://localhost:8080**. Konta demonstracyjne (tylko w trybie laboratorium):
+Interfejs: **http://localhost:8800** (port zmienisz przez `ASI_PORT` w `.env`). Konta demonstracyjne (tylko w trybie laboratorium):
 
 | Konto | Hasło | Rola |
 |---|---|---|
@@ -49,6 +49,38 @@ Kolejne kroki demo:
 1. W UI: **Skany → Uruchom skan → „Lab – usługi”** (2048 adresów) albo **„Lab – cała sieć /16”** (65 536 adresów, pokazuje skalę).
 2. Uruchom `./lab/scenario.sh step2`, a potem drugi skan w trybie *differential*.
 3. **Zmiany → Porównanie skanów**. Dla trzech workerów dzielących wspólny budżet ruchu: `make scale`.
+
+## Lokalny DefectDojo
+
+```bash
+make dojo
+```
+
+Uruchamia ASI razem z lokalnym DefectDojo (obrazy z Docker Hub, `deploy/defectdojo.yml`). Pierwszy start trwa kilka minut, bo inicjalizator wykonuje migracje.
+
+- DefectDojo: **http://localhost:8880**, login `admin`, hasło `DD_ADMIN_PASSWORD` z `.env`.
+- ASI samo pobiera token API (`/api/v2/api-token-auth/`) i włącza deduplikację w ustawieniach systemowych DefectDojo, bo domyślnie jest wyłączona. Nie trzeba niczego klikać.
+- Znaleziska trafiają do jednego Testu na grupę celów (`ASI – <grupa>`). Pierwszy raz idą przez `import-scan`, a potem przez `reimport-scan`; stare znaleziska są zamykane tylko po zakończonym przebiegu.
+- Triage działa w obie strony. False positive / risk accepted ustawione w DefectDojo jest pobierane do ASI i obniża wynik hosta. Oznaczenie w ASI aktualizuje znalezisko w DefectDojo.
+
+Zewnętrzną instancję podłączysz przez `ASI_DD_URL` + `ASI_DD_TOKEN` (albo `ASI_DD_USER` / `ASI_DD_PASSWORD`).
+
+## Testowanie na laboratorium organizatorów (`lab.zip`)
+
+Stosy z `lab.zip` publikują usługi na portach hosta (80, 81, 443, 2223, 3001, 5432, 5672, 6379, 8080–8090, 8787, 8888, 15672…). Uruchamiaj **jeden stos naraz**, zgodnie z README organizatorów, i nie wystawiaj ich do Internetu.
+
+```bash
+make hostworker
+```
+
+Dodaje worker w sieci hosta (`network_mode: host`, `ASI_WORKER_LOOPBACK=1`), który widzi porty opublikowane na `127.0.0.1`. Przebiegi z adresami loopback trafiają wyłącznie do takiego workera.
+
+Następnie w UI:
+1. **Administracja → Zakres skanowania**: dodaj `127.0.0.1/32` (albo adres IP maszyny z labem).
+2. **Skany → Nowa grupa celów**: utwórz grupę z celem `127.0.0.1` i profilem **„Lab organizatorów (porty hosta)”**. Profil obejmuje top-1000 i wszystkie porty używane w szablonach, a discovery jest wyłączone, bo loopback zawsze żyje. Do wariantów z nowymi usługami na nietypowych portach jest profil **„Wszystkie porty (1-65535)”**.
+3. Uruchom skan *baseline*. Zmień stos albo jego konfigurację (np. `docker compose stop …`, `ENABLE_LATENCY=true` w `modern-proxy`). Potem uruchom skan *differential* i otwórz **Zmiany**.
+
+Lab można też skanować z innej maszyny po jej adresie IP. Wtedy wystarczy zwykły worker.
 
 ## Co robi pipeline
 
@@ -121,7 +153,7 @@ go test ./...                       # testy jednostkowe (sygnatury, zakresy, szy
 ```
 
 ```bash
-cd web && npm ci && npm run dev     # UI z proxy do :8080
+cd web && npm ci && npm run dev     # UI z proxy do :8800
 ```
 
 ```bash
@@ -131,5 +163,5 @@ make dev                            # serwer lokalnie (PostgreSQL + zmienne z .e
 Worker poza Dockerem wymaga `nmap` (oraz opcjonalnie `naabu`) i uprawnień `CAP_NET_RAW`. Bez nich przechodzi w tryb TCP connect i zgłasza ostrzeżenie w UI.
 
 ```bash
-ASI_SERVER_URL=http://localhost:8080 ASI_WORKER_TOKEN=... asi worker
+ASI_SERVER_URL=http://localhost:8800 ASI_WORKER_TOKEN=... asi worker
 ```

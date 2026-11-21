@@ -247,3 +247,44 @@ func (c *Client) Patch(ctx context.Context, id int, fields map[string]any) error
 	b, _ := json.Marshal(fields)
 	return c.do(ctx, "PATCH", fmt.Sprintf("/api/v2/findings/%d/", id), bytes.NewReader(b), "application/json", nil)
 }
+
+// TokenAuth pobiera token API v2 na podstawie loginu i hasła (/api/v2/api-token-auth/).
+func TokenAuth(ctx context.Context, baseURL, user, pass string, insecure bool) (string, error) {
+	c := New(baseURL, "", insecure)
+	b, _ := json.Marshal(map[string]string{"username": user, "password": pass})
+	req, err := http.NewRequestWithContext(ctx, "POST", c.URL+"/api/v2/api-token-auth/", bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != 200 {
+		return "", &APIError{resp.StatusCode, string(body)}
+	}
+	var out struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil || out.Token == "" {
+		return "", fmt.Errorf("DefectDojo: brak tokenu w odpowiedzi")
+	}
+	return out.Token, nil
+}
+
+// EnableDeduplication włącza deduplikację w System Settings (wymaga uprawnień administratora DefectDojo).
+func (c *Client) EnableDeduplication(ctx context.Context) error {
+	var ss struct {
+		Results []struct {
+			ID int `json:"id"`
+		} `json:"results"`
+	}
+	if err := c.do(ctx, "GET", "/api/v2/system_settings/", nil, "", &ss); err != nil || len(ss.Results) == 0 {
+		return fmt.Errorf("system_settings: %v", err)
+	}
+	b, _ := json.Marshal(map[string]any{"enable_deduplication": true})
+	return c.do(ctx, "PATCH", fmt.Sprintf("/api/v2/system_settings/%d/", ss.Results[0].ID), bytes.NewReader(b), "application/json", nil)
+}

@@ -2,10 +2,10 @@
 DC  = docker compose
 LAB = docker compose -f docker-compose.yml -f lab/docker-compose.lab.yml
 
-.PHONY: env up down lab lab-down logs seed scale test web build dev e2e
+.PHONY: env up down lab lab-down logs seed scale test web build dev e2e dojo dojo-down hostworker
 
-env: ## tworzy .env z losowymi sekretami (jeśli nie istnieje)
-	@test -f .env || ./scripts/make-env.sh
+env: ## tworzy / uzupełnia .env z losowymi sekretami
+	@./scripts/make-env.sh
 
 up: env ## system bez laboratorium
 	$(DC) up -d --build
@@ -42,3 +42,12 @@ dev: ## serwer lokalnie (wymaga PostgreSQL i zmiennych z .env)
 
 e2e: ## pełny test w laboratorium: skan, zmiany, drugi skan, asercje
 	./scripts/e2e.sh
+
+dojo: env ## system + lokalny DefectDojo (http://localhost:8880, admin / DD_ADMIN_PASSWORD z .env)
+	$(DC) -f docker-compose.yml -f deploy/defectdojo.yml up -d --build
+
+dojo-down:
+	$(DC) -f docker-compose.yml -f deploy/defectdojo.yml down
+
+hostworker: ## dodatkowy worker w sieci hosta (skanowanie usług na portach tej maszyny / 127.0.0.1)
+	$(DC) -f docker-compose.yml -f deploy/worker-hostnet.yml up -d --build worker-host

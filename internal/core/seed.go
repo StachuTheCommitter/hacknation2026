@@ -63,6 +63,19 @@ func (a *App) Seed(ctx context.Context) error {
 			p.UDPPorts = ""
 			p.RetryDelaysSec = []int{20, 60}
 		}},
+		// porty z szablonu laboratorium organizatorów (usługi wystawione na portach hosta)
+		{"Lab organizatorów (porty hosta)", func(p *model.Profile) {
+			p.TCPPorts = "top-1000,21,80,81,443,2223,3001,5432,5672,5673,6379,8080-8090,8474,8666,8787,8888,15432,15672,15673,21000-21010"
+			p.RetryDelaysSec = []int{20, 60}
+			p.DiscoveryEngine = "none" // pojedynczy host: discovery zbędne, skanujemy porty bezpośrednio
+			p.PortscanScope = "all"
+		}},
+		// mały cel (kilka hostów): wszystkie porty TCP – 65 535 × host przy 2000 pps to ok. 35 s
+		{"Wszystkie porty (1-65535)", func(p *model.Profile) {
+			p.TCPPorts = "1-65535"
+			p.PortscanScope = "all"
+			p.RetryDelaysSec = []int{20, 60}
+		}},
 	} {
 		prof := model.DefaultProfile()
 		p.mod(&prof)
