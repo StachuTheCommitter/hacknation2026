@@ -55,7 +55,8 @@ echo "== Skan 2 (differential)"
 R2=$(run_and_wait differential)
 ch() { get "/changes?run_id=$R2&limit=500&type=$1" | j 'len(d)'; }
 echo "  zmiany: nowe=$(ch HOST_NEW,SERVICE_NEW) zmienione=$(ch SERVICE_CHANGED,HTTP_CHANGED,TLS_CHANGED)"
-check "nowy host 10.77.7.10 (HOST_NEW)" "$(get "/changes?run_id=$R2&type=HOST_NEW&limit=100" | j '1 if any(c["host_ip"]=="10.77.7.10" for c in d) else 0')"
+# HOST_NEW przy świeżej bazie; HOST_RETURNED, gdy host był już widziany we wcześniejszych przebiegach
+check "nowy host 10.77.7.10 (HOST_NEW / HOST_RETURNED)" "$(get "/changes?run_id=$R2&type=HOST_NEW,HOST_RETURNED&limit=100" | j '1 if any(c["host_ip"]=="10.77.7.10" for c in d) else 0')"
 check "zmiana stagingu (HTTP_CHANGED/TLS_CHANGED)" "$(get "/changes?run_id=$R2&limit=500" | j '1 if any(c["host_ip"]=="10.77.3.10" and c["type"] in ("HTTP_CHANGED","TLS_CHANGED") for c in d) else 0')"
 check "zmiana wersji OpenSSH (SERVICE_CHANGED)" "$(get "/changes?run_id=$R2&limit=500" | j '1 if any(c["host_ip"]=="10.77.5.10" and c["type"]=="SERVICE_CHANGED" for c in d) else 0')"
 diff=$(get "/runs/$R1/diff/$R2")
