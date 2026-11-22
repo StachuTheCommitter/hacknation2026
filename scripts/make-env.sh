@@ -6,7 +6,7 @@ rnd() { head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c "$1"; }
 [ -f .env ] || cp .env.example .env
 setk() { # ustawia klucz, jeśli jest pusty lub go brak
   if grep -q "^$1=." .env; then return; fi
-  if grep -q "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi
+  if grep -q "^$1=" .env; then sed -i.bak "s|^$1=.*|$1=$2|" .env && rm -f .env.bak; else echo "$1=$2" >> .env; fi
 }
 setk ASI_MASTER_KEY "$(head -c 32 /dev/urandom | base64)"
 setk ASI_WORKER_TOKEN "asi_wk_$(rnd 32)"
